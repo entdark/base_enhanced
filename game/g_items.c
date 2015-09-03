@@ -350,6 +350,13 @@ void CreateShield(gentity_t *ent)
 	}
 	ent->clipmask = MASK_SHOT;
 
+	G_LogPrintf( "CreateShield() Creating shield %i for owner %i, origin (%.3f, %.3f, %.3f), min corner (%.3f, %.3f, %.3f), max corner (%.3f, %.3f, %.3f)\n",
+		ent - g_entities,
+		ent->s.owner,
+		ent->r.currentOrigin[0], ent->r.currentOrigin[1], ent->r.currentOrigin[2],
+		ent->r.mins[0], ent->r.mins[1], ent->r.mins[2],
+		ent->r.maxs[0], ent->r.maxs[1], ent->r.maxs[2] );
+
 	// Information for shield rendering.
 
 //	xaxis - 1 bit
