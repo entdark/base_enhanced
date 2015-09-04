@@ -424,6 +424,10 @@ typedef struct {
 // this is achieved by writing all the data to cvar strings at game shutdown
 // time and reading them back at connection time.  Anything added here
 // MUST be dealt with in G_InitSessionData() / G_ReadSessionData() / G_WriteSessionData()
+// Sil - This structure no longer needs to be maintained in G_InitSessionData(), G_ReadSessionData(), 
+// G_WriteSessionData(), because whole content is stored in binary file as it is, and then restored.
+// Make sure that content stored in this structure has to be serializable, in other words do not
+// store pointers here.
 typedef struct {
 	team_t		sessionTeam;
 	int			spectatorTime;		// for determining next-in-line to play
@@ -1394,7 +1398,7 @@ qboolean G_FilterPacket( char *from, char* reasonBuffer, int reasonBufferSize);
 qboolean G_FilterGetstatusPacket (unsigned int ip);
 qboolean getIpFromString( const char* from, unsigned int* ip );
 qboolean getIpPortFromString( const char* from, unsigned int* ip, int* port );
-const char* getStringFromIp(unsigned int ip);
+void getStringFromIp( unsigned int ip, char* buffer, int size );
 
 
 //
@@ -1477,11 +1481,11 @@ void Svcmd_GameMem_f( void );
 //
 // g_session.c
 //
-void G_ReadSessionData( gclient_t *client );
 void G_InitSessionData( gclient_t *client, char *userinfo, qboolean isBot, qboolean firstTime );
 
 void G_InitWorldSession( void );
 void G_WriteSessionData( void );
+void G_ReadSessionData( void );
 
 //
 // NPC_senses.cpp
@@ -1564,6 +1568,7 @@ int getGlobalTime();
 // g_siege.c
 void InitSiegeMode(void);
 void G_SiegeClientExData(gentity_t *msgTarg);
+char* G_SiegeTeamName( int team );
 
 // g_timer
 //Timing information
@@ -1750,6 +1755,8 @@ extern	vmCvar_t	g_debugRight;
 extern	vmCvar_t	g_debugUp;
 extern	vmCvar_t	g_smoothClients;
 extern	vmCvar_t	g_defaultBanHoursDuration;
+extern	vmCvar_t	g_floatingItems;
+extern	vmCvar_t	g_rocketSurfing;
 
 #include "namespace_begin.h"
 extern	vmCvar_t	pmove_fixed;
@@ -1799,9 +1806,9 @@ extern vmCvar_t		g_protectQ3FillIPLimit;
 extern vmCvar_t		g_protectHPhack;
 extern vmCvar_t		g_protectCallvoteHack;
 extern vmCvar_t		g_maxIPConnected;
-extern vmCvar_t		g_fixLateCapture;
 extern vmCvar_t		g_minimumVotesCount;
-
+extern vmCvar_t		g_enforceEvenVotersCount;
+extern vmCvar_t		g_minVotersForEvenVotersCount;
 
 extern vmCvar_t     g_strafejump_mod;
 
@@ -1814,8 +1821,6 @@ extern vmCvar_t     g_fixPitKills;
 extern vmCvar_t    bot_minping;
 extern vmCvar_t    bot_maxping;
 extern vmCvar_t    bot_ping_sparsity;
-
-//extern vmCvar_t     g_bouncelimit;
 
 extern vmCvar_t     g_allow_vote_gametype;
 extern vmCvar_t     g_allow_vote_kick;
@@ -1836,8 +1841,8 @@ extern vmCvar_t	g_whitelist;
 extern vmCvar_t    g_fixboon;
 extern vmCvar_t    g_maxstatusrequests;
 extern vmCvar_t	   g_logrcon;
-extern vmCvar_t	   g_testdeflection;
 extern vmCvar_t	   g_flags_overboarding;
+extern vmCvar_t	   g_selfkill_penalty;
 
 extern vmCvar_t	   g_rconpassword;
 
@@ -1847,6 +1852,7 @@ extern vmCvar_t	   g_callvotemaplimit;
 extern vmCvar_t	   sv_privateclients;
 
 extern vmCvar_t	   g_wasRestarted;
+extern vmCvar_t	   g_fixNodropDetpacks;
 
 int validateAccount(const char* username, const char* password, int num);
 void unregisterUser(const char* username);

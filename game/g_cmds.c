@@ -552,6 +552,11 @@ void Cmd_Kill_f( gentity_t *ent ) {
 		return;
 	}
 
+    if ( ent->client->tempSpectate > level.time )
+    {
+        return;
+    }
+
     //OSP: pause
     if ( level.pause.state != PAUSE_NONE )
             return;
@@ -602,11 +607,6 @@ void BroadcastTeamChange( gclient_t *client, int oldTeam )
 	client->ps.fd.forceDoInit = 1; //every time we change teams make sure our force powers are set right
 
 	*buffer = '\0';
-
-	if (g_gametype.integer == GT_SIEGE)
-	{ //don't announce these things in siege
-		return;
-	}
 
 	if ( client->sess.sessionTeam == TEAM_RED ) {
 		Q_strncpyz(buffer, 
@@ -808,6 +808,7 @@ void SetTeam( gentity_t *ent, char *s ) {
 			if (ent->client->sess.sessionTeam != ent->client->sess.siegeDesiredTeam)
 			{
 				SetTeamQuick(ent, ent->client->sess.siegeDesiredTeam, qfalse);
+                BroadcastTeamChange( client, client->sess.sessionTeam );
 			}
 
 			return;
@@ -905,8 +906,7 @@ void SetTeam( gentity_t *ent, char *s ) {
             teamName = "spec";
             break;
     }  
-    G_LogDbLogLevelEvent( level.db.levelId, level.time - level.startTime, levelEventTeamChanged,
-        client->sess.sessionId, oldTeam, team, 0, 0 );
+    // G_LogDbLogLevelEvent( level.db.levelId, level.time - level.startTime, levelEventTeamChanged, client->sess.sessionId, oldTeam, team, 0, 0 );
 
 	//make a disappearing effect where they were before teleporting them to the appropriate spawn point,
 	//if we were not on the spec team
@@ -1162,6 +1162,81 @@ int G_TeamForSiegeClass(const char *clName)
 	return 0;
 }
 
+void SetSiegeClass( gentity_t *ent, char* className)
+{
+	qboolean startedAsSpec = qfalse;
+	int team = 0;
+	int preScore;
+
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR )
+	{
+		startedAsSpec = qtrue;
+	}
+
+	team = G_TeamForSiegeClass( className );
+
+	if ( !team )
+	{ //not a valid class name
+		return;
+	}
+
+	if ( ent->client->sess.sessionTeam != team )
+	{ //try changing it then
+		g_preventTeamBegin = qtrue;
+		if ( team == TEAM_RED )
+		{
+			SetTeam( ent, "red" );
+		}
+		else if ( team == TEAM_BLUE )
+		{
+			SetTeam( ent, "blue" );
+		}
+		g_preventTeamBegin = qfalse;
+
+		if ( ent->client->sess.sessionTeam != team )
+		{ //failed, oh well
+			if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ||
+				ent->client->sess.siegeDesiredTeam != team )
+			{
+				trap_SendServerCommand( ent - g_entities, va( "print \"%s\n\"", G_GetStringEdString( "MP_SVGAME", "NOCLASSTEAM" ) ) );
+				return;
+			}
+		}
+	}
+
+	//preserve 'is score
+	preScore = ent->client->ps.persistant[PERS_SCORE];
+
+	//Make sure the class is valid for the team
+	BG_SiegeCheckClassLegality( team, className );
+
+	//Set the session data
+	strcpy( ent->client->sess.siegeClass, className );
+
+	// get and distribute relevent paramters
+	ClientUserinfoChanged( ent->s.number );
+
+	if ( ent->client->tempSpectate < level.time )
+	{
+		// Kill him (makes sure he loses flags, etc)
+		if ( ent->health > 0 && !startedAsSpec )
+		{
+			ent->flags &= ~FL_GODMODE;
+			ent->client->ps.stats[STAT_HEALTH] = ent->health = 0;
+			player_die( ent, ent, ent, 100000, MOD_SUICIDE );
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR || startedAsSpec )
+		{ //respawn them instantly.
+			ClientBegin( ent->s.number, qfalse );
+		}
+	}
+	//set it back after we do all the stuff
+	ent->client->ps.persistant[PERS_SCORE] = preScore;
+
+	ent->client->switchClassTime = level.time + 5000;
+}
+
 /*
 =================
 Cmd_SiegeClass_f
@@ -1170,9 +1245,6 @@ Cmd_SiegeClass_f
 void Cmd_SiegeClass_f( gentity_t *ent )
 {
 	char className[64];
-	int team = 0;
-	int preScore;
-	qboolean startedAsSpec = qfalse;
 
 	if (g_gametype.integer != GT_SIEGE)
 	{ //classes are only valid for this gametype
@@ -1193,77 +1265,73 @@ void Cmd_SiegeClass_f( gentity_t *ent )
 	{
 		trap_SendServerCommand( ent-g_entities, va("print \"%s\n\"", G_GetStringEdString("MP_SVGAME", "NOCLASSSWITCH")) );
 		return;
+	}	
+
+	trap_Argv( 1, className, sizeof( className ) );
+
+	SetSiegeClass( ent, className );  
+}
+
+void Cmd_Class_f( gentity_t *ent )
+{
+	char className[16];
+	int classNumber = 0;
+	siegeClass_t* siegeClass = 0;
+
+	if ( !ent || !ent->client )
+	{
+		return;
 	}
 
-	if (ent->client->sess.sessionTeam == TEAM_SPECTATOR)
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR )
 	{
-		startedAsSpec = qtrue;
+		return;
+	}
+
+	if ( trap_Argc() < 1 )
+	{
+		trap_SendServerCommand( ent - g_entities, "print \"Invalid arguments. \n\"" );
+		return;
+	}
+
+	if ( ent->client->switchClassTime > level.time )
+	{
+		trap_SendServerCommand( ent - g_entities, va( "print \"%s\n\"", G_GetStringEdString( "MP_SVGAME", "NOCLASSSWITCH" ) ) );
+		return;
 	}
 
 	trap_Argv( 1, className, sizeof( className ) );
 
-	team = G_TeamForSiegeClass(className);
+	if ( (className[0] >= '0') && (className[0] <= '9') )
+	{
+		classNumber = atoi( className );
+	}
+	else
+	{
+		 // funny way for pro siegers
+		switch ( tolower(className[0]) )
+		{
+			case 'a': classNumber = 1; break;
+			case 'h': classNumber = 2; break;
+			case 'd': classNumber = 3; break;
+			case 's': classNumber = 4; break;
+			case 't': classNumber = 5; break;
+			case 'j': classNumber = 6; break;
+			default:
+				trap_SendServerCommand( ent - g_entities, "print \"Invalid class identifier. \n\"" );
+				return;	   
+		}
 
-	if (!team)
-	{ //not a valid class name
+	} 
+	
+	siegeClass = BG_SiegeGetClass( ent->client->sess.sessionTeam, classNumber);
+	if ( !siegeClass )
+	{	 		
+		trap_SendServerCommand( ent - g_entities, "print \"Invalid class number. \n\"" );
 		return;
 	}
 
-	if (ent->client->sess.sessionTeam != team)
-	{ //try changing it then
-		g_preventTeamBegin = qtrue;
-		if (team == TEAM_RED)
-		{
-			SetTeam(ent, "red");
-		}
-		else if (team == TEAM_BLUE)
-		{
-			SetTeam(ent, "blue");
-		}
-		g_preventTeamBegin = qfalse;
-
-		if (ent->client->sess.sessionTeam != team)
-		{ //failed, oh well
-			if (ent->client->sess.sessionTeam != TEAM_SPECTATOR ||
-				ent->client->sess.siegeDesiredTeam != team)
-			{
-				trap_SendServerCommand( ent-g_entities, va("print \"%s\n\"", G_GetStringEdString("MP_SVGAME", "NOCLASSTEAM")) );
-				return;
-			}
-		}
-	}
-
-	//preserve 'is score
-	preScore = ent->client->ps.persistant[PERS_SCORE];
-
-	//Make sure the class is valid for the team
-	BG_SiegeCheckClassLegality(team, className);
-
-	//Set the session data
-	strcpy(ent->client->sess.siegeClass, className);
-
-	// get and distribute relevent paramters
-	ClientUserinfoChanged( ent->s.number );
-
-	if (ent->client->tempSpectate < level.time)
-	{
-		// Kill him (makes sure he loses flags, etc)
-		if (ent->health > 0 && !startedAsSpec)
-		{
-			ent->flags &= ~FL_GODMODE;
-			ent->client->ps.stats[STAT_HEALTH] = ent->health = 0;
-			player_die (ent, ent, ent, 100000, MOD_SUICIDE);
-		}
-
-		if (ent->client->sess.sessionTeam == TEAM_SPECTATOR || startedAsSpec)
-		{ //respawn them instantly.
-			ClientBegin( ent->s.number, qfalse );
-		}
-	}
-	//set it back after we do all the stuff
-	ent->client->ps.persistant[PERS_SCORE] = preScore;
-
-	ent->client->switchClassTime = level.time + 5000;
+	SetSiegeClass( ent, siegeClass->name );												  
 }
 
 /*
@@ -1362,11 +1430,14 @@ qboolean G_SetSaber(gentity_t *ent, int saberNum, char *saberName, qboolean sieg
 		strcpy(ent->client->sess.saber2Type, ent->client->saber[1].name);
 	}
 
-	if ( !WP_SaberStyleValidForSaber( &ent->client->saber[0], &ent->client->saber[1], ent->client->ps.saberHolstered, ent->client->ps.fd.saberAnimLevel ) )
-	{
-		WP_UseFirstValidSaberStyle( &ent->client->saber[0], &ent->client->saber[1], ent->client->ps.saberHolstered, &ent->client->ps.fd.saberAnimLevel );
-		ent->client->ps.fd.saberAnimLevelBase = ent->client->saberCycleQueue = ent->client->ps.fd.saberAnimLevel;
-	}
+    if ( g_gametype.integer != GT_SIEGE )
+    {
+        if ( !WP_SaberStyleValidForSaber( &ent->client->saber[0], &ent->client->saber[1], ent->client->ps.saberHolstered, ent->client->ps.fd.saberAnimLevel ) )
+        {
+            WP_UseFirstValidSaberStyle( &ent->client->saber[0], &ent->client->saber[1], ent->client->ps.saberHolstered, &ent->client->ps.fd.saberAnimLevel );
+            ent->client->ps.fd.saberAnimLevelBase = ent->client->saberCycleQueue = ent->client->ps.fd.saberAnimLevel;
+        }
+    }
 
 	return qtrue;
 }
@@ -2214,11 +2285,13 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "unpause" ) ) { 
 	} else if ( !Q_stricmp( arg1, "endmatch" ) ) { 
 	} else if ( !Q_stricmp( arg1, "cointoss")) {
+    } else if ( !Q_stricmp( arg1, "randomcapts")) {
+    } else if ( !Q_stricmp( arg1, "randomteams")) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		trap_SendServerCommand( ent-g_entities, "print \"Vote commands are: map_restart, nextmap, map <mapname>, g_gametype <n>, "
 			"kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>, "
-			"resetflags, q <question>, pause, unpause, endmatch.\n\"" );
+			"resetflags, q <question>, pause, unpause, endmatch, randomcapts, randomteams <numRedPlayers> <numBluePlayers>.\n\"" );
 		return;
 	}
 
@@ -2465,11 +2538,18 @@ void Cmd_CallVote_f( gentity_t *ent ) {
         // set default map_restart 3 when there is no time provided
         if (argc < 3)
         {
-            n = g_default_restart_countdown.integer;
+            if ( g_gametype.integer == GT_SIEGE )
+            {
+                n = 0;
+            }
+            else
+            {  
+                n = g_default_restart_countdown.integer;
+            }
         }
 
 		if (n < 0) n = 0;
-		else if (n > 60) n = 60;
+		else if (n > 10) n = 10;
 
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "%s \"%i\"", arg1, n );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
@@ -2490,6 +2570,25 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf(level.voteString, sizeof(level.voteString), "%s", arg1);
 		Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Coin Toss");
 	}
+    else if (!Q_stricmp(arg1, "randomcapts"))
+    {
+        Com_sprintf(level.voteString, sizeof(level.voteString), "%s", arg1);
+        Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Random capts");
+    }
+    else if (!Q_stricmp(arg1, "randomteams"))
+    {
+        int team1Count, team2Count;
+        char count[2];
+
+        trap_Argv(2, count, sizeof(count));
+        team1Count = atoi(count);
+
+        trap_Argv(3, count, sizeof(count));
+        team2Count = atoi(count);
+
+        Com_sprintf(level.voteString, sizeof(level.voteString), "%s %i %i", arg1, team1Count, team2Count);
+        Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Random Teams - %i vs %i", team1Count, team2Count);
+    }
 	else if ( !Q_stricmp( arg1, "resetflags" )) 
 	{
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "%s", arg1 );
@@ -2614,8 +2713,8 @@ static void Cmd_Ready_f(gentity_t *ent) {
 	if (ent->client->pers.readyTime > level.time - 2000)
 		return;
 
-	if (ent->client->sess.sessionTeam == TEAM_SPECTATOR)
-		return;
+	// if (ent->client->sess.sessionTeam == TEAM_SPECTATOR)
+    //     return;
 
 	ent->client->pers.ready = !ent->client->pers.ready;
 	ent->client->pers.readyTime = level.time;
@@ -2682,9 +2781,9 @@ void Cmd_CallTeamVote_f( gentity_t *ent ) {
 	if ((g_protectCallvoteHack.integer && (strchr( arg1, '\n' ) || strchr( arg2, '\n' ) ||	strchr( arg1, '\r' ) || strchr( arg2, '\r' ))) ) {
 		//lets replace line breaks with ; for better readability
 		int len;
-		for(len = 0; len < strlen(arg1); ++len)
+		for(len = 0; len < (int)strlen(arg1); ++len)
 			if(arg1[len]=='\n' || arg1[len]=='\r') arg1[len] = ';';
-		for(len = 0; len < strlen(arg2); ++len)
+		for(len = 0; len < (int)strlen(arg2); ++len)
 			if(arg2[len]=='\n' || arg2[len]=='\r') arg2[len] = ';';
 
 		G_HackLog("Callvote hack: Client num %d (%s) from %s tries to hack via callvote (callvote %s \"%s\").\n",
@@ -3473,8 +3572,8 @@ static void Cmd_WhoIs_f( gentity_t* ent )
             id = foundid;
         }
 
-        if ( id < -1 || id > 31 ||
-            (id >= 0 && (!g_entities[id].inuse || !g_entities[id].client)) )
+        if ( id < 0 || id > 31 ||
+            (id >= 0 && (!g_entities[id].client || g_entities[id].client->pers.connected == CON_DISCONNECTED)) )
         {
             trap_SendServerCommand( ent - g_entities, va( "print \"Wrong client number %i.\n\"", id ) );
             return;
@@ -3484,7 +3583,7 @@ static void Cmd_WhoIs_f( gentity_t* ent )
             id, g_entities[id].client->pers.netname ) );
 
         
-        int maskInt = 0xFFFFFFFF;
+        unsigned int maskInt = 0xFFFFFFFF;
 
         if ( trap_Argc() > 2 )
         {
@@ -4016,6 +4115,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_DuelTeam_f (ent);
 	else if (Q_stricmp (cmd, "siegeclass") == 0)
 		Cmd_SiegeClass_f (ent);
+	else if ( Q_stricmp( cmd, "class" ) == 0 )
+		Cmd_Class_f( ent );
 	else if (Q_stricmp (cmd, "forcechanged") == 0)
 		Cmd_ForceChanged_f (ent);
 	else if (Q_stricmp (cmd, "where") == 0)

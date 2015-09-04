@@ -1134,6 +1134,12 @@ respawn
 */
 void SiegeRespawn(gentity_t *ent);
 void respawn( gentity_t *ent ) {
+
+	if ( ent->client->ps.eFlags2&EF2_HELD_BY_MONSTER )
+	{
+		return;
+	}
+
 	MaintainBodyQueue(ent);
 
 	if (gEscaping || g_gametype.integer == GT_POWERDUEL)
@@ -1155,7 +1161,7 @@ void respawn( gentity_t *ent ) {
 	{
 		if (g_siegeRespawn.integer)
 		{
-			if (ent->client->tempSpectate <= level.time)
+            if ( (ent->client->tempSpectate <= level.time) && (g_siegeRespawnCheck >= level.time) )
 			{
 				int minDel = g_siegeRespawn.integer* 2000;
 				if (minDel < 20000)
@@ -1168,6 +1174,7 @@ void respawn( gentity_t *ent ) {
 				ent->client->ps.stats[STAT_WEAPONS] = 0;
 				ent->client->ps.stats[STAT_HOLDABLE_ITEMS] = 0;
 				ent->client->ps.stats[STAT_HOLDABLE_ITEM] = 0;
+				ent->client->ps.eFlags = 0;
 				ent->takedamage = qfalse;
 				trap_LinkEntity(ent);
 
@@ -1852,8 +1859,13 @@ void SetupGameGhoul2Model(gentity_t *ent, char *modelname, char *skinName)
 	}
 }
 
-
-
+unsigned long long int Q_strtoull(const char *str, char **endptr, int base) {
+#ifdef WIN32
+	return _strtoui64( str, endptr, base );
+#else
+	return strtoull( str, endptr, base );
+#endif
+}
 
 /*
 ===========
@@ -2181,14 +2193,13 @@ void ClientUserinfoChanged( int clientNum ) {
 		unsigned long long int totalHash;
 		SHA1Context ctx;
 		SHA1Reset( &ctx );
-		value = Info_ValueForKey( userinfo, "ip" );
-		if ( value && *value ) {
-            int ip = 0;
-            getIpFromString( value , &ip);
+
+		{
+            unsigned int ip = 0;
+			getIpFromString( client->sess.ipString, &ip );
 			SHA1Input( &ctx, (unsigned char *)&ip, sizeof( ip ) );
-		} else {
-			// no ip? ....
 		}
+
 		if ( SHA1Result( &ctx ) == 1 ) {
 			ipHash = ctx.Message_Digest[0];
 		}
@@ -2207,9 +2218,35 @@ void ClientUserinfoChanged( int clientNum ) {
 			value = Info_ValueForKey( userinfo, "sex" );
 			if ( value && *value && Q_isanumber( value ) ) {
 				guidHash = atoi( value );
+				Com_Printf( "Client %d reports guid %d (userinfo %s)\n", clientNum, guidHash, userinfo );
 			} else {
 				char systeminfo[16384];
-				guidHash = rand();
+				char previnfo[16384];
+				qboolean prevGuid = qfalse;
+				trap_GetConfigstring( CS_PLAYERS+clientNum, previnfo, sizeof( previnfo ) );
+				if ( *previnfo ) {
+					value = Info_ValueForKey( previnfo, "id" );
+					if ( value && *value ) {
+						// player previously had an id but the guid didn't stick, try to set it again
+						char *endptr = NULL;
+						unsigned long long int prevHash = Q_strtoull( value, &endptr, 10 );
+						if ( *endptr == '\0' ) {
+							if ( prevHash == ULLONG_MAX && errno == ERANGE ) {
+								// parsed, but value was out of range
+								Com_Printf( "Client %d's previous id was too long: %s\n", clientNum, value );
+							} else {
+								guidHash = prevHash & 0xFFFFFFFF;
+								prevGuid = qtrue;
+							}
+						}
+					}
+				}
+				if ( prevGuid ) {
+					Com_Printf( "Reassigning previously assigned guid %d to client %d (userinfo %s)\n", guidHash, clientNum, userinfo );
+				} else {
+					guidHash = rand();
+					Com_Printf( "Assigning random guid %d to client %d (userinfo %s)\n", guidHash, clientNum, userinfo );
+				}
 				trap_GetConfigstring( CS_SYSTEMINFO, systeminfo, sizeof( systeminfo ) );
 				// they only need to see it once for it to be set
 				trap_SendServerCommand( clientNum, va( "cs %i \"%s\\sex\\%d\"", CS_SYSTEMINFO, systeminfo, guidHash ) );
@@ -2463,7 +2500,9 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	//assign the pointer for bg entity access
 	ent->playerState = &ent->client->ps;
 
+    clientSession_t	sessOld = client->sess;
 	memset( client, 0, sizeof(*client) );
+    client->sess = sessOld;
 
 	client->pers.connected = CON_CONNECTING;
 
@@ -2474,13 +2513,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		client->pers.botAvgPing = (bot_maxping.integer-bot_minping.integer)*random()+bot_minping.integer;;
 
 	// read or initialize the session data
-	if ( firstTime || level.newSession ) {
-		if (!firstTime && level.newSession) //just for ip, bit hacky i know
-			G_ReadSessionData( client );
-
+	if ( firstTime || level.newSession ) 
+    {
 		G_InitSessionData( client, userinfo, isBot, firstTime );
 	}
-	G_ReadSessionData( client );
 
 	//clean all players ignore flags for connecting guy
 	if (firstTime){
@@ -2507,10 +2543,14 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	if (g_gametype.integer == GT_SIEGE && client->sess.sessionTeam != TEAM_SPECTATOR)
 	{
-		if (firstTime || level.newSession)
+		if (firstTime || level.newSession) 
 		{ //start as spec
 			client->sess.siegeDesiredTeam = client->sess.sessionTeam;
-			client->sess.sessionTeam = TEAM_SPECTATOR;
+
+			if ( !isBot )
+			{
+				client->sess.sessionTeam = TEAM_SPECTATOR;
+			}
 		}
 	}
 	else if (g_gametype.integer == GT_POWERDUEL && client->sess.sessionTeam != TEAM_SPECTATOR)
@@ -2558,8 +2598,6 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	return NULL;
 }
 
-void G_WriteClientSessionData( gclient_t *client );
-
 #include "namespace_begin.h"
 void WP_SetSaber( int entNum, saberInfo_t *sabers, int saberNum, const char *saberName );
 #include "namespace_end.h"
@@ -2593,7 +2631,6 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 		if (allowTeamReset)
 		{
 			const char *team = "Red";
-			int preSess;
 
 			ent->client->sess.sessionTeam = PickTeam(-1);
 			trap_GetUserinfo(clientNum, userinfo, MAX_INFO_STRING);
@@ -2616,14 +2653,10 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 
 			trap_SetUserinfo( clientNum, userinfo );
 
-			ent->client->ps.persistant[ PERS_TEAM ] = ent->client->sess.sessionTeam;
-
-			preSess = ent->client->sess.sessionTeam;
-			G_ReadSessionData( ent->client );
-			ent->client->sess.sessionTeam = preSess;
-			G_WriteClientSessionData(ent->client);
-			ClientUserinfoChanged( clientNum );
+			ent->client->ps.persistant[ PERS_TEAM ] = ent->client->sess.sessionTeam; 
+			
 			ClientBegin(clientNum, qfalse);
+			ClientUserinfoChanged( clientNum );
 			return;
 		}
 	}
@@ -3194,7 +3227,10 @@ void ClientSpawn(gentity_t *ent) {
 		{ //doesn't match up (or our session saber is BS), we want to try setting it
 			if (G_SetSaber(ent, l, value, qfalse))
 			{
-				changedSaber = qtrue;
+				if ( Q_stricmp( value, saber ) )
+				{
+					changedSaber = qtrue;
+				}
 			}
 			else if (!saber[0] || !ent->client->saber[0].model[0])
 			{ //Well, we still want to say they changed then (it means this is siege and we have some overrides)
@@ -4033,12 +4069,8 @@ void ClientDisconnect( int clientNum ) {
 		gentity_t *veh = &g_entities[ent->client->ps.m_iVehicleNum];
 
 		if (veh->inuse && veh->client && veh->m_pVehicle)
-		{
-			int pCon = ent->client->pers.connected;
-
-			ent->client->pers.connected = 0;
+		{ 
 			veh->m_pVehicle->m_pVehicleInfo->Eject(veh->m_pVehicle, (bgEntity_t *)ent, qtrue);
-			ent->client->pers.connected = pCon;
 		}
 	}
 

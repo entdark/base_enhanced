@@ -16,7 +16,6 @@ qboolean WP_SaberStyleValidForSaber( saberInfo_t *saber1, saberInfo_t *saber2, i
 qboolean saberCheckKnockdown_DuelLoss(gentity_t *saberent, gentity_t *saberOwner, gentity_t *other);
 
 extern vmCvar_t g_saberLockRandomNess;
-extern vmCvar_t     g_fixRocketGlitch;
 
 void P_SetTwitchInfo(gclient_t	*client)
 {
@@ -511,7 +510,9 @@ void	G_TouchTriggers( gentity_t *ent ) {
 		if ( !hit->touch && !ent->touch ) {
 			continue;
 		}
-		if ( !( hit->r.contents & CONTENTS_TRIGGER ) ) {
+		if ( !( hit->r.contents & CONTENTS_TRIGGER )
+            && (hit->s.eType != ET_SPECIAL) )
+        {
 			continue;
 		}
 
@@ -822,6 +823,7 @@ qboolean CheckPlayerInactivityTimer(gclient_t *client)
                 // just force them to spec
                 trap_SendServerCommand(-1, va("print \"%s "S_COLOR_WHITE"forced to spectators due to inactivity\n\"", client->pers.netname));
                 trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i spectator\n", client - level.clients));
+                client->sess.inactivityTime = getGlobalTime() + 1000;
             }
 
             active = qfalse;
@@ -1708,9 +1710,7 @@ void G_SetTauntAnim( gentity_t *ent, int taunt )
 	}
 
 	// *CHANGE 65* fix - release rocket lock, old bug
-	if (g_fixRocketGlitch.integer){
-		BG_ClearRocketLock(&ent->client->ps);
-	}
+	BG_ClearRocketLock(&ent->client->ps);
 
 	if ( ent->client->ps.torsoTimer < 1 
 		&& ent->client->ps.forceHandExtend == HANDEXTEND_NONE 
@@ -2103,7 +2103,7 @@ void ClientThink_real( gentity_t *ent ) {
 	// mark the time, so the connection sprite can be removed
 	ucmd = &ent->client->pers.cmd;
 
-	if ( client && (client->ps.eFlags2&EF2_HELD_BY_MONSTER) )
+    if ( client && (client->ps.eFlags2&EF2_HELD_BY_MONSTER) && (!(ent->client->ps.pm_flags & PMF_FOLLOW)) )
 	{
 		G_HeldByMonster( ent, &ucmd );
 	}
@@ -3093,11 +3093,19 @@ void ClientThink_real( gentity_t *ent ) {
 				if ( ent->client->ps.groundEntityNum != ENTITYNUM_NONE )
 				{//ATST crushes anything underneath it
 					gentity_t	*under = &g_entities[ent->client->ps.groundEntityNum];
+
 					if ( under && under->health && under->takedamage )
 					{
 						vec3_t	down = {0,0,-1};
+						gentity_t	*attacker = ent;
+
+						if ( ent->m_pVehicle->m_pPilot )
+						{
+							attacker = &g_entities[ent->m_pVehicle->m_pPilot->s.number];
+						}
+
 						//FIXME: we'll be doing traces down from each foot, so we'll have a real impact origin
-						G_Damage( under, ent, ent, down, under->r.currentOrigin, 100, 0, MOD_CRUSH );
+						G_Damage( under, attacker, attacker, down, under->r.currentOrigin, 100, 0, MOD_CRUSH );
 					}
 				}
 			}

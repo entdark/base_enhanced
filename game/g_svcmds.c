@@ -50,9 +50,6 @@ typedef struct ipFilter_s
 #define	MAX_IPFILTERS	1024
 #endif
 
-static ipFilter_t	ipFilters[MAX_IPFILTERS];
-static int			numIPFilters;
-
 // getstatus/getinfo bans
 static ipFilter_t	getstatusIpFilters[MAX_IPFILTERS];
 static int			getstatusNumIPFilters;
@@ -350,8 +347,10 @@ G_FilterPacket
 */
 qboolean G_FilterPacket( char *from, char* reasonBuffer, int reasonBufferSize )
 {
-    return G_CfgDbIsFiltered( from, reasonBuffer, reasonBufferSize );
-	}
+    unsigned int ip = 0;
+    getIpFromString( from, &ip );
+    return G_CfgDbIsFiltered( ip, reasonBuffer, reasonBufferSize );
+}
 
 /*
 =================
@@ -418,21 +417,10 @@ qboolean getIpPortFromString( const char* from, unsigned int* ip, int* port )
     return success;
 }
 
-const char* getStringFromIp(unsigned int ip){
-	byte a,b,c,d;
-	static char buffer[16];
-
-	if (!ip)
-		return "";
-
-	a = ip;
-	b = ip >> 8;
-	c = ip >> 16;
-	d = ip >> 24;
-
-	Q_strncpyz(buffer,va("%i.%i.%i.%i", a,b,c,d),sizeof(buffer));
-
-	return buffer;
+void getStringFromIp( unsigned int ip, char* buffer, int size )
+{
+    Com_sprintf( buffer, size, "%d.%d.%d.%d",
+        (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, (ip) & 0xFF );
 }
 
 /*
@@ -460,7 +448,7 @@ static void GetstatusAddIP( char *str )
 	if (!StringToFilter (str, 0, &getstatusIpFilters[i]))
 		getstatusIpFilters[i].compare = 0xffffffffu;
 
-	//GetstatusUpdateIPBans();
+	GetstatusUpdateIPBans();
 }
 
 /*
@@ -495,56 +483,61 @@ Svcmd_AddIP_f
 =================
 */
 void Svcmd_AddIP_f (void)
-        {
-    char ip[32];
-    char mask[32];
+{
+    char ip[32];      
     char notes[32];
     char reason[32];
     int hours = 0;
+    unsigned int ipInt;
+    unsigned int maskInt;
 
-	if ( trap_Argc() < 2 ) {
-		G_Printf("Usage:  addip <ip> (mask) (notes) (reason) (hours)\n");
+    if ( trap_Argc() < 2 ) 
+    {
+        G_Printf( "Usage:  addip <ip> (mask) (notes) (reason) (hours)\n" );
         G_Printf( " ip - ip address in format X.X.X.X, do not use 0s!\n" );
         G_Printf( " mask - mask format X.X.X.X, defaults to 255.255.255.255\n" );
         G_Printf( " notes - notes only for admins, defaults to \"\"\n" );
         G_Printf( " reason - reason to be shown to banned player, defaults to \"Unknown\"\n" );
         G_Printf( " hours - duration in hours, defaults to g_defaultBanHoursDuration\n" );
 
-		return;
-            }   
+        return;
+    }   
 
     // set defaults
-    Q_strncpyz( mask, "255.255.255.255", sizeof( mask ) );
+    maskInt = 0xFFFFFFFF;
     Q_strncpyz( notes, "", sizeof( notes ) );
     Q_strncpyz( reason, "Unknown", sizeof( reason ) );
     hours = g_defaultBanHoursDuration.integer;
 
     // set actuals
     trap_Argv( 1, ip, sizeof( ip ) );
+    getIpFromString( ip, &ipInt );
 
     if ( trap_Argc() > 2 )
-            {
+    {
+        char mask[32];
         trap_Argv( 2, mask, sizeof( mask ) );
+        getIpFromString( mask, &maskInt );
     }
 
     if ( trap_Argc() > 3 )
-                {
+    {
         trap_Argv( 3, notes, sizeof( notes ) );
-                }
+    }
 
     if ( trap_Argc() > 4 )
     {
         trap_Argv( 4, reason, sizeof( reason ) );
-            }
+    }
 
     if ( trap_Argc() > 5 )
-		    {
+    {
         char hoursStr[16];
         trap_Argv( 5, hoursStr, sizeof( hoursStr ) );
         hours = atoi( hoursStr );        
-		    }  	
+    }                       
 
-    if ( G_CfgDbAddToBlacklist( ip, mask, notes, reason, hours ) )
+    if ( G_CfgDbAddToBlacklist( ipInt, maskInt, notes, reason, hours ) )
     {
         G_Printf( "Added %s to blacklist successfuly.\n", ip );
         }
@@ -562,7 +555,8 @@ Svcmd_RemoveIP_f
 void Svcmd_RemoveIP_f (void)
 {
     char ip[32];
-    char mask[32];
+    unsigned int ipInt;
+    unsigned int maskInt;
 
     if ( trap_Argc() < 2 )
     {
@@ -571,19 +565,22 @@ void Svcmd_RemoveIP_f (void)
         G_Printf( " mask - mask format X.X.X.X, defaults to 255.255.255.255\n" );
 
         return;
-	}
+    }
 
     // set defaults
-    Q_strncpyz( mask, "255.255.255.255", sizeof( mask ) );
+    maskInt = 0xFFFFFFFF;
 
     trap_Argv( 1, ip, sizeof( ip ) );
+    getIpFromString( ip, &ipInt );
 
     if ( trap_Argc() > 2 )
     {
+        char mask[32];
         trap_Argv( 2, mask, sizeof( mask ) );
-}
+        getIpFromString( mask, &maskInt );
+    }   
 
-    if ( G_CfgDbRemoveFromBlacklist( ip, mask ) )
+    if ( G_CfgDbRemoveFromBlacklist( ipInt, maskInt ) )
     {
         G_Printf( "Removed %s from blacklist successfuly.\n", ip );
     }
@@ -602,36 +599,40 @@ Svcmd_AddWhiteIP_f
 void Svcmd_AddWhiteIP_f( void )
 {
     char ip[32];
-    char mask[32];
     char notes[32];
+    unsigned int ipInt;
+    unsigned int maskInt;
 
     if ( trap_Argc() < 2 )
-{
+    {
         G_Printf( "Usage:  addwhiteip <ip> (mask) (notes)\n" );
         G_Printf( " ip - ip address in format X.X.X.X, do not use 0s!\n" );
         G_Printf( " mask - mask format X.X.X.X, defaults to 255.255.255.255\n" );
         G_Printf( " notes - notes only for admins, defaults to \"\"\n" );
 
-		return;
-	}
+        return;
+    }
 
     // set defaults
-    Q_strncpyz( mask, "255.255.255.255", sizeof( mask ) );
+    maskInt = 0xFFFFFFFF;
     Q_strncpyz( notes, "", sizeof( notes ) );
 
     trap_Argv( 1, ip, sizeof( ip ) );
+    getIpFromString( ip, &ipInt );
 
     if ( trap_Argc() > 2 )
     {
+        char mask[32];
         trap_Argv( 2, mask, sizeof( mask ) );
+        getIpFromString( mask, &maskInt );
     }
 
     if ( trap_Argc() > 3 )
     {
         trap_Argv( 3, notes, sizeof( notes ) );
-    }  
+    }          
 
-    if ( G_CfgDbAddToWhitelist( ip, mask, notes ) )
+    if ( G_CfgDbAddToWhitelist( ipInt, maskInt, notes ) )
     {
         G_Printf( "Added %s to whitelist successfuly.\n", ip );
     }
@@ -649,48 +650,61 @@ Svcmd_RemoveWhiteIP_f
 void Svcmd_RemoveWhiteIP_f( void )
 {
     char ip[32];
-    char mask[32];
+    
+    unsigned int ipInt;
+    unsigned int maskInt;
 
     if ( trap_Argc() < 2 )
-{
+    {
         G_Printf( "Usage:  removewhiteip <ip> (mask)\n" );
         G_Printf( " ip - ip address in format X.X.X.X, do not use 0s!\n" );
         G_Printf( " mask - mask format X.X.X.X, defaults to 255.255.255.255\n" );
 
-		return;
-	}
+        return;
+    }
 
     // set defaults
-    Q_strncpyz( mask, "255.255.255.255", sizeof( mask ) );
-
+    maskInt = 0xFFFFFFFF;
 
     trap_Argv( 1, ip, sizeof( ip ) );
+    getIpFromString( ip, &ipInt );
 
     if ( trap_Argc() > 2 )
     {
+        char mask[32];    
         trap_Argv( 2, mask, sizeof( mask ) );
-    }
 
-    if ( G_CfgDbRemoveFromWhitelist( ip, mask ) )
+        getIpFromString( mask, &maskInt );
+    }         
+
+    if ( G_CfgDbRemoveFromWhitelist( ipInt, maskInt ) )
     {
         G_Printf( "Removed %s from whitelist successfuly.\n", ip );
     }
     else
     {
-        G_Printf( "Failed to remove %s to whitelist.\n", ip );
-		}
-	}
+        G_Printf( "Failed to remove %s from whitelist.\n", ip );
+    }
+}
 
 
-void (listCallback)( const char* ip,
-    const char* mask,
+void (listCallback)( unsigned int ip,
+    unsigned int mask,
     const char* notes,
     const char* reason,
     const char* banned_since,
     const char* banned_until )
 {
-    G_Printf( "%s %s \"%s\" \"%s\" %s %s\n",
-        ip, mask, notes, reason, banned_since, banned_until );
+    G_Printf( "%d.%d.%d.%d %d.%d.%d.%d \"%s\" \"%s\" %s %s\n",
+        (ip >> 24) & 0xFF,
+        (ip >> 16) & 0xFF,
+        (ip >> 8) & 0xFF,
+        (ip) & 0xFF,
+        (mask >> 24) & 0xFF,
+        (mask >> 16) & 0xFF,
+        (mask >> 8) & 0xFF,
+        (mask) & 0xFF,
+        notes, reason, banned_since, banned_until );
 }
 
 /*
@@ -920,6 +934,7 @@ void Svcmd_Osinfo_f(){
 
 void Svcmd_ClientBan_f(){
 	char clientId[4];
+    char ip[16];
 	int id;
 
 	trap_Argv(1,clientId,sizeof(clientId));
@@ -934,7 +949,10 @@ void Svcmd_ClientBan_f(){
 	if (g_entities[id].r.svFlags & SVF_BOT)
 		return;
 
-	trap_SendConsoleCommand(EXEC_APPEND, va("addip %s\n",getStringFromIp(g_entities[id].client->sess.ip)));
+
+    getStringFromIp( g_entities[id].client->sess.ip, ip, sizeof( ip ) );
+
+    trap_SendConsoleCommand( EXEC_APPEND, va( "addip %s\n", ip ) );
 	trap_SendConsoleCommand(EXEC_APPEND, va("clientkick %i\n",id));
 
 }
@@ -1077,6 +1095,172 @@ void Svcmd_MapRandom_f()
     }
 
     G_Printf( "Map pool '%s' not found\n", pool );
+}
+
+void Svcmd_SpecAll_f() {
+    int i;
+
+    for (i = 0; i < level.maxclients; i++) {
+        if (!g_entities[i].inuse || !g_entities[i].client) {
+            continue;
+        }
+
+        if ((g_entities[i].client->sess.sessionTeam == TEAM_BLUE) || (g_entities[i].client->sess.sessionTeam == TEAM_RED)) {
+            trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i s\n", i));
+        }
+    }
+}
+
+void Svcmd_RandomCapts_f() {
+    int ingame[32], spectator[32], i, numberOfIngamePlayers = 0, numberOfSpectators = 0, randNum1, randNum2;
+
+    for (i = 0; i < level.maxclients; i++) {
+        if (!g_entities[i].inuse || !g_entities[i].client) {
+            continue;
+        }
+
+        if (g_entities[i].client->sess.sessionTeam == TEAM_SPECTATOR) {
+            spectator[numberOfSpectators] = i;
+            numberOfSpectators++;
+        }
+        else if ((g_entities[i].client->sess.sessionTeam == TEAM_BLUE) || (g_entities[i].client->sess.sessionTeam == TEAM_RED)) {
+            ingame[numberOfIngamePlayers] = i;
+            numberOfIngamePlayers++;
+        }
+    }
+
+    if (numberOfIngamePlayers + numberOfSpectators < 2) {
+        trap_SendServerCommand(-1, "print \"^1Not enough players on the server.\n\"");
+        return;
+    }
+
+    if (numberOfIngamePlayers == 0) {
+        randNum1 = rand() % numberOfSpectators;
+        randNum2 = (randNum1 + 1 + (rand() % (numberOfSpectators - 1))) % numberOfSpectators;
+
+        trap_SendServerCommand(-1, va("print \"^7The captain for team ^1RED ^7 is: %s\n\"", g_entities[spectator[randNum1]].client->pers.netname));
+        trap_SendServerCommand(-1, va("print \"^7The captain for team ^4BLUE ^7 is: %s\n\"", g_entities[spectator[randNum2]].client->pers.netname));
+    }
+    else if (numberOfIngamePlayers == 1) {
+        randNum1 = rand() % numberOfSpectators;
+
+        if (g_entities[ingame[0]].client->sess.sessionTeam == TEAM_RED) {
+            trap_SendServerCommand(-1, va("print \"^7The captain for team ^4BLUE ^7 is: %s\n\"", g_entities[spectator[randNum1]].client->pers.netname));
+        }
+        else if (g_entities[ingame[0]].client->sess.sessionTeam == TEAM_BLUE) {
+            trap_SendServerCommand(-1, va("print \"^7The captain for team ^1RED ^7 is: %s\n\"", g_entities[spectator[randNum1]].client->pers.netname));
+        }
+    }
+    else if (numberOfIngamePlayers == 2) {
+        if (g_entities[ingame[0]].client->sess.sessionTeam != TEAM_RED) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i r\n", ingame[0]));
+            SetTeam(&g_entities[ingame[0]], "red");
+        }
+        if (g_entities[ingame[1]].client->sess.sessionTeam != TEAM_BLUE) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i b\n", ingame[1]));
+            SetTeam(&g_entities[ingame[1]], "blue");
+        }
+    }
+    else {
+        randNum1 = rand() % numberOfIngamePlayers;
+        randNum2 = (randNum1 + 1 + (rand() % (numberOfIngamePlayers - 1))) % numberOfIngamePlayers;
+
+        if (g_entities[ingame[randNum1]].client->sess.sessionTeam != TEAM_RED) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i r\n", ingame[randNum1]));
+            SetTeam(&g_entities[ingame[randNum1]], "red");
+        }
+        if (g_entities[ingame[randNum2]].client->sess.sessionTeam != TEAM_BLUE) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i b\n", ingame[randNum2]));
+            SetTeam(&g_entities[ingame[randNum2]], "blue");
+        }
+
+        int i;
+        for ( i = 0; i < numberOfIngamePlayers; i++) {
+            if ((i == randNum1) || (i == randNum2)) {
+                continue;
+            }
+
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i s\n", ingame[i]));
+            SetTeam(&g_entities[ingame[i]], "spectator");
+        }
+    }
+}
+
+void Svcmd_RandomTeams_f() {
+    int i, j, temp, numberOfReadyPlayers = 0, numberOfOtherPlayers = 0;
+    int otherPlayers[32], readyPlayers[32];
+    int team1Count, team2Count;
+    char count[2];
+
+    if (trap_Argc() < 3) {
+        return;
+    }
+
+    trap_Argv(1, count, sizeof(count));
+    team1Count = atoi(count);
+
+    trap_Argv(2, count, sizeof(count));
+    team2Count = atoi(count);
+
+    if ((team1Count <= 0) || (team2Count <= 0)) {
+        return;
+    }
+
+    for (i = 0; i < level.maxclients; i++) {
+        if (!g_entities[i].inuse || !g_entities[i].client) {
+            continue;
+        }
+
+        if (!g_entities[i].client->pers.ready) {
+            otherPlayers[numberOfOtherPlayers] = i;
+            numberOfOtherPlayers++;
+            continue;
+        }
+
+        readyPlayers[numberOfReadyPlayers] = i;
+        numberOfReadyPlayers++;
+    }
+
+    if (numberOfReadyPlayers < team1Count + team2Count) {
+        trap_SendServerCommand(-1, va("print \"^1Not enough ready players on the server: %i\n\"", numberOfReadyPlayers));
+        return;
+    }
+
+    // fisher-yates shuffle algorithm
+    for (i = numberOfReadyPlayers - 1; i >= 1; i--) {
+        j = rand() % (i + 1);
+        temp = readyPlayers[i];
+        readyPlayers[i] = readyPlayers[j];
+        readyPlayers[j] = temp;
+    }
+
+    for (i = 0; i < team1Count; i++) {
+        if (g_entities[readyPlayers[i]].client->sess.sessionTeam != TEAM_RED) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i r\n", readyPlayers[i]));
+            SetTeam(&g_entities[readyPlayers[i]], "red");
+        }
+    }
+    for (i = team1Count; i < team1Count + team2Count; i++) {
+        if (g_entities[readyPlayers[i]].client->sess.sessionTeam != TEAM_BLUE) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i b\n", readyPlayers[i]));
+            SetTeam(&g_entities[readyPlayers[i]], "blue");
+        }
+    }
+    for (i = team1Count + team2Count; i < numberOfReadyPlayers; i++) {
+        if (g_entities[readyPlayers[i]].client->sess.sessionTeam != TEAM_SPECTATOR) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i s\n", readyPlayers[i]));
+            SetTeam(&g_entities[readyPlayers[i]], "spectator");
+        }
+    }
+    for (i = 0; i < numberOfOtherPlayers; i++) {
+        if (g_entities[otherPlayers[i]].client->sess.sessionTeam != TEAM_SPECTATOR) {
+            //trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i s\n", otherPlayers[i]));
+            SetTeam(&g_entities[otherPlayers[i]], "spectator");
+        }
+    }
+
+    trap_SendServerCommand(-1, va("print \"^2The captain in team ^1RED ^2is^7: %s\n\"", g_entities[readyPlayers[0]].client->pers.netname));
+    trap_SendServerCommand(-1, va("print \"^2The captain in team ^4BLUE ^2is^7: %s\n\"", g_entities[readyPlayers[team1Count]].client->pers.netname));
 }
 
 void Svcmd_PoolCreate_f()
@@ -1369,6 +1553,21 @@ qboolean	ConsoleCommand( void ) {
 		Svcmd_Cointoss_f();
 		return qtrue;
 	}
+
+    if (!Q_stricmp(cmd, "specall")) {
+        Svcmd_SpecAll_f();
+        return qtrue;
+    }
+
+    if (!Q_stricmp(cmd, "randomcapts")) {
+        Svcmd_RandomCapts_f();
+        return qtrue;
+    }
+
+    if (!Q_stricmp(cmd, "randomteams")) {
+        Svcmd_RandomTeams_f();
+        return qtrue;
+    }
 	
 
 

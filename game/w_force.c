@@ -14,7 +14,6 @@ extern void NPC_UseResponse( gentity_t *self, gentity_t *user, qboolean useWhenD
 extern void Jedi_Decloak( gentity_t *self );
 
 extern vmCvar_t		g_saberRestrictForce;
-extern vmCvar_t     g_fixRocketGlitch;
 
 #include "namespace_begin.h"
 extern qboolean BG_FullBodyTauntAnim( int anim );
@@ -1828,10 +1827,7 @@ void ForceLightning( gentity_t *self )
 	}
 
 	// *CHANGE 65* fix - release rocket lock, old bug
-	if (g_fixRocketGlitch.integer){
-		BG_ClearRocketLock(&self->client->ps);
-	}
-
+	BG_ClearRocketLock(&self->client->ps);
 
 	//Shoot lightning from hand
 	//using grip anim now, to extend the burst time
@@ -2749,9 +2745,7 @@ void ForceTelepathy(gentity_t *self)
 	}
 
 	// *CHANGE 65* fix - release rocket lock, old bug
-	if (g_fixRocketGlitch.integer){
-		BG_ClearRocketLock(&self->client->ps);
-	}
+	BG_ClearRocketLock(&self->client->ps);
 
 	if ( ForceTelepathyCheckDirectNPCTarget( self, &tr, &tookPower ) )
 	{//hit an NPC directly
@@ -3107,9 +3101,7 @@ void ForceThrow( gentity_t *self, qboolean pull )
 	}
 
 	// *CHANGE 65* fix - release rocket lock, old bug
-	if (g_fixRocketGlitch.integer){
-		BG_ClearRocketLock(&self->client->ps);
-	}
+	BG_ClearRocketLock(&self->client->ps);
 
 	if (!pull && self->client->ps.saberLockTime > level.time && self->client->ps.saberLockFrame)
 	{
@@ -4674,7 +4666,15 @@ void FindGenericEnemyIndex(gentity_t *self)
 	{
 		ent = &g_entities[i];
 
-		if (ent && ent->client && ent->s.number != self->s.number && ent->health > 0 && !OnSameTeam(self, ent) && ent->client->ps.pm_type != PM_INTERMISSION && ent->client->ps.pm_type != PM_SPECTATOR)
+        if ( ent && 
+            ent->inuse &&
+            ent->client && 
+            (ent->s.number != self->s.number) && 
+            (ent->health > 0) && 
+            !OnSameTeam( self, ent ) && 
+            (ent->client->ps.pm_type != PM_INTERMISSION) && 
+            (ent->client->ps.pm_type != PM_SPECTATOR) && 
+            !(ent->client->ps.pm_flags & PMF_FOLLOW) )
 		{
 			VectorSubtract(ent->client->ps.origin, self->client->ps.origin, a);
 			tlen = VectorLength(a);
@@ -4797,7 +4797,7 @@ void SeekerDroneUpdate(gentity_t *self)
 	{
 		en = &g_entities[self->client->ps.genericEnemyIndex];
 
-		if (!en || !en->client)
+		if (!en || !en->client || !en->inuse)
 		{
 			self->client->ps.genericEnemyIndex = ENTITYNUM_NONE;
 		}

@@ -964,7 +964,7 @@ void SiegeCheckTimers(void)
 
 	if (!gSiegeRoundBegun)
 	{
-		if (!numTeam1 || !numTeam2)
+		if (!numTeam1 && !numTeam2)
 		{ //don't have people on both teams yet.
 			gSiegeBeginTime = level.time + SIEGE_ROUND_BEGIN_TIME;
 			trap_SetConfigstring(CS_SIEGE_STATE, "1"); //"waiting for players on both teams"
@@ -1051,8 +1051,17 @@ void siegeTriggerUse(gentity_t *ent, gentity_t *other, gentity_t *activator)
 	}
 
 	if (activator && activator->client)
-	{ //activator will hopefully be the person who triggered this event
-		clUser = activator->s.number;
+	{ //activator will hopefully be the person who triggered this event		  
+		if ( activator->client->NPC_class == CLASS_VEHICLE
+			&& activator->m_pVehicle
+			&& activator->m_pVehicle->m_pPilot )
+		{
+			clUser = activator->m_pVehicle->m_pPilot->s.number;
+		}
+		else
+		{
+			clUser = activator->s.number;
+		}
 	}
 
 	if (ent->side == SIEGETEAM_TEAM1)
@@ -1452,7 +1461,7 @@ void SiegeItemTouch( gentity_t *self, gentity_t *other, trace_t *trace )
 	if (!other || !other->inuse ||
 		!other->client || other->s.eType == ET_NPC)
 	{
-		if (trace && trace->startsolid)
+		if (g_floatingItems.integer && trace && trace->startsolid)
 		{ //let me out! (ideally this should not happen, but such is life)
 			vec3_t escapePos;
 			VectorCopy(self->r.currentOrigin, escapePos);
@@ -1860,3 +1869,19 @@ void G_SiegeClientExData(gentity_t *msgTarg)
 	//send the string to him
 	trap_SendServerCommand(msgTarg-g_entities, str);
 }
+
+char* G_SiegeTeamName( int team )
+{
+    char* teamStr;
+    if ( team == SIEGETEAM_TEAM1 )
+    {
+        teamStr = team1;
+    }
+    else
+    {
+        teamStr = team2;
+    }
+
+    return teamStr;
+}
+
