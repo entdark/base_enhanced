@@ -58,8 +58,6 @@ vmCvar_t	g_chatLimit;
 
 vmCvar_t	g_allowNPC;
 
-vmCvar_t	g_key;
-
 vmCvar_t	g_armBreakage;
 
 vmCvar_t	g_saberLocking;
@@ -142,29 +140,14 @@ vmCvar_t	g_inactivity;
 vmCvar_t	g_inactivityKick;
 vmCvar_t	g_spectatorInactivity;
 vmCvar_t	g_debugMove;
-
-//vmCvar_t	g_debugGhost;
-
-//ACCOUNTS 
 vmCvar_t	g_accounts;
-vmCvar_t	g_accountsFile;
-
+vmCvar_t	g_accountsFile; 
 vmCvar_t	g_whitelist;
-
-
-//URL FOR DOWNLOAD
-vmCvar_t	g_dlURL;
-
-
-vmCvar_t	g_logrcon;
-
+vmCvar_t	g_dlURL;   
+vmCvar_t	g_logrcon;   
 vmCvar_t	g_flags_overboarding;
-
-//DB - accounts system
-//extern vmCvar_t	db_url;
-//extern vmCvar_t	db_serverid;
-//extern vmCvar_t	db_debug;
-//extern vmCvar_t	db_log;
+vmCvar_t	g_selfkill_penalty;
+vmCvar_t	g_fixNodropDetpacks;
 
 #ifndef FINAL_BUILD
 vmCvar_t	g_debugDamage;
@@ -197,6 +180,8 @@ vmCvar_t	g_debugRight;
 vmCvar_t	g_debugUp;
 vmCvar_t	g_smoothClients;
 vmCvar_t	g_defaultBanHoursDuration;
+vmCvar_t	g_floatingItems;
+vmCvar_t	g_rocketSurfing;
 
 #include "namespace_begin.h"
 vmCvar_t	pmove_fixed;
@@ -273,17 +258,17 @@ vmCvar_t	g_protectQ3FillIPLimit;
 vmCvar_t	g_protectHPhack;
 vmCvar_t	g_maxIPConnected;
 vmCvar_t	g_protectCallvoteHack;
-vmCvar_t    g_fixLateCapture;
 vmCvar_t    g_minimumVotesCount;
 vmCvar_t    g_fixPitKills;
-vmCvar_t    g_fixRocketGlitch;
+
+vmCvar_t    g_enforceEvenVotersCount;
+vmCvar_t    g_minVotersForEvenVotersCount;
 
 vmCvar_t    bot_minping;
 vmCvar_t    bot_maxping;
 vmCvar_t    bot_ping_sparsity;
 
-extern vmCvar_t     g_strafejump_mod;
-extern vmCvar_t     g_disableStrafejump;
+vmCvar_t     g_strafejump_mod;
 
 //allowing/disabling vote types
 vmCvar_t    g_allow_vote_gametype;
@@ -301,25 +286,10 @@ vmCvar_t	g_hackLog;
 
 vmCvar_t    g_default_restart_countdown;
 
-vmCvar_t	jp_DlBaseURL;
-
-vmCvar_t    g_info_url;
-vmCvar_t    g_info_location;
-vmCvar_t    g_info_forum;
-vmCvar_t    g_info_hosted_by;
-vmCvar_t    g_info_email;
-vmCvar_t    g_info_administrator;
-vmCvar_t    g_info_irc;
-
 vmCvar_t    g_fixboon;
 vmCvar_t    g_maxstatusrequests;
-vmCvar_t    g_enginefix;
 vmCvar_t	g_testdebug; //for tmp debug
-vmCvar_t	g_callstackcounter; //debug
 vmCvar_t	g_rconpassword;
-
-vmCvar_t	g_testdeflection;
-
 
 vmCvar_t	g_callvotedelay;
 vmCvar_t	g_callvotemaplimit;
@@ -374,10 +344,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_chatLimit, "g_chatLimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },
 
-	//  *CHANGE 90* - g_allowNPC should be turned off by default, it causes huge .nav files, and its useless
-	{ &g_allowNPC, "g_allowNPC", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },
-
-	{ &g_key, "g_flags", "0", CVAR_SERVERINFO, 0, qtrue  },
+	{ &g_allowNPC, "g_allowNPC", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },
 
 	{ &g_armBreakage, "g_armBreakage", "0", 0, 0, qtrue  },
 
@@ -479,7 +446,6 @@ static cvarTable_t		gameCvarTable[] = {
     { &g_speed, "g_speed", "250", CVAR_SERVERINFO, 0, qtrue },
     { &g_gravity, "g_gravity", "800", CVAR_SERVERINFO, 0, qtrue },
     { &g_knockback, "g_knockback", "1000", 0, 0, qtrue },
-    //{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
     { &g_weaponRespawn, "g_weaponrespawn", "5", 0, 0, qtrue },
     { &g_weaponTeamRespawn, "g_weaponTeamRespawn", "5", 0, 0, qtrue },
     { &g_adaptRespawn, "g_adaptrespawn", "1", 0, 0, qtrue },		// Make weapons respawn faster with a lot of players.
@@ -511,8 +477,6 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_debugUp, "g_debugUp", "0", 0, 0, qfalse },
 #endif
 
-//	{ &g_redteam, "g_redteam", "Empire", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue },
-//	{ &g_blueteam, "g_blueteam", "Rebellion", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue  },
 	{ &g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, qfalse, qfalse  },
 
 	{ &g_enableBreath, "g_enableBreath", "0", 0, 0, qtrue, qfalse },
@@ -600,7 +564,6 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_protectCallvoteHack,	"g_protectCallvoteHack"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
 
-	//{ &g_maxIPConnecting,	"g_maxIPConnecting"	, "2"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_maxIPConnected,	"g_maxIPConnected"	, "0"	, CVAR_ARCHIVE, 0, qtrue },	
 
 	// *CHANGE 10* anti q3fill
@@ -613,15 +576,13 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_fixPitKills,	"g_fixPitKills"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
 
-	{ &g_fixLateCapture,	"g_fixLateCapture"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
     { &g_minimumVotesCount, "g_minimumVotesCount", "0", CVAR_ARCHIVE, 0, qtrue },
-	//{ &g_fixCaptureCondition,	"g_fixCaptureCondition"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &g_fixDetPackBug,	"g_fixDetPackBug"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
-	{ &g_fixRocketGlitch,	"g_fixRocketGlitch"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
+
+    { &g_enforceEvenVotersCount, "g_enforceEvenVotersCount", "0", CVAR_ARCHIVE, 0, qtrue },
+    { &g_minVotersForEvenVotersCount, "g_minVotersForEvenVotersCount", "7", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_strafejump_mod,	"g_strafejump_mod"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 
-	{ &g_disableStrafejump,	"g_disableStrafejump"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
     { &g_default_restart_countdown, "g_default_restart_countdown", "0", CVAR_ARCHIVE, 0, qtrue }, 
 
 	{ &g_allow_vote_gametype,	"g_allow_vote_gametype"	, "1023"	, CVAR_ARCHIVE, 0, qtrue },
@@ -638,54 +599,35 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_hackLog,	"g_hackLog"	, "hacks.log"	, CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_npc_spawn_limit,	"g_npc_spawn_limit"	, "100"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &g_bouncelimit,	"g_bouncelimit"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
-
-	
-/*
-	{ &g_info_url,	".Url"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_location,	".Location"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_forum,	".Forum"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_hosted_by,	".Hosted_By"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_email,	".Email"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_administrator,	".Administrator"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	{ &g_info_irc,	".Irc"	, ""	, CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qtrue },
-	*/
 
 	{ &g_accounts,	"g_accounts"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_accountsFile,	"g_accountsFile"	, "accounts.txt"	, CVAR_ARCHIVE, 0, qtrue },
     { &g_whitelist, "g_whitelist", "0", CVAR_ARCHIVE, 0, qtrue },
-	
-	//database info - accounts system
-	//{ &db_url,	"db_url"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &db_serverid,	"db_username"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &db_debug,	"db_debug"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &db_log,	"db_log"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
-	
+
 
 	{ &g_dlURL,	"g_dlURL"	, ""	, CVAR_SYSTEMINFO, 0, qtrue },
 
 	{ &g_fixboon,	"g_fixboon"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
-	{ &g_testdeflection,	"g_testdeflection"	, "0"	, CVAR_ARCHIVE, 0, qtrue },	
     { &g_flags_overboarding, "g_flags_overboarding", "1", CVAR_ARCHIVE, 0, qtrue },
-
-	//{ &g_cmdtimelimit,	"g_cmdtimelimit"	, "500"	, CVAR_INTERNAL, 0, qtrue },	
-	
-
+    { &g_selfkill_penalty, "g_selfkill_penalty", "1", CVAR_ARCHIVE, 0, qtrue },
+    
 	{ &g_maxstatusrequests,	"g_maxstatusrequests"	, "50"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &g_followSpectator,	"g_followSpectator"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	//{ &g_connectionsInChat,	"g_connectionsInChat"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	{ &g_enginefix,	"g_enginefix"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_testdebug,	"g_testdebug"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 	
 	{ &g_logrcon,	"g_logrcon"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
-	{ &g_callstackcounter,	"g_callstackcounter"	, "0"	, CVAR_ARCHIVE | CVAR_INTERNAL, 0, qfalse },
 	{ &g_rconpassword,	"rconpassword"	, "0"	, CVAR_ARCHIVE | CVAR_INTERNAL },
 
 	{ &g_callvotedelay,	"g_callvotedelay"	, "0"	, CVAR_ARCHIVE | CVAR_INTERNAL },
     { &g_callvotemaplimit,	"g_callvotemaplimit"	, "0"	, CVAR_ARCHIVE | CVAR_INTERNAL },
     
     { &sv_privateclients, "sv_privateclients", "0", CVAR_ARCHIVE | CVAR_SERVERINFO },
-    { &g_defaultBanHoursDuration, "g_defaultBanHoursDuration", "24", CVAR_ARCHIVE | CVAR_INTERNAL },      
+    { &g_defaultBanHoursDuration, "g_defaultBanHoursDuration", "24", CVAR_ARCHIVE | CVAR_INTERNAL },  
+
+	{ &g_floatingItems, "g_floatingItems", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_rocketSurfing, "g_rocketSurfing", "1", CVAR_ARCHIVE, 0, qtrue },
+
+	{ &g_fixNodropDetpacks, "g_fixNodropDetpacks", "1", CVAR_ARCHIVE, 0, qtrue },
+	
 
 };
 
@@ -1308,6 +1250,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 		g_entities[i].client = level.clients + i;
 	}
 
+    G_ReadSessionData();
+
 	// always leave room for the max number of clients,
 	// even if they aren't all used, so numbers inside that
 	// range are NEVER anything but clients
@@ -1429,12 +1373,10 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 		}
 	}
 
-//#if 0
-	if (g_enginefix.integer){
-		Com_Printf("Applying engine fix.\n");
+    if ( BG_IsLegacyEngine() )
+    {
 		PatchEngine();
 	}
-//#endif
 
     G_CfgDbLoad();
     G_LogDbLoad();
@@ -1536,9 +1478,7 @@ void G_ShutdownGame( int restart ) {
     G_CfgDbUnload();
     G_LogDbUnload();
 
-//#if 0
 	UnpatchEngine();
-//#endif
 }
 
 
@@ -3707,21 +3647,6 @@ void CheckVote( void ) {
             }
         }
 
-        if (!Q_stricmpn(level.voteString, "clientkick", 10)){
-            int id = atoi(&level.voteString[11]);
-
-            if ((id < sv_privateclients.integer) && !(g_entities[id].r.svFlags & SVF_BOT))
-            {
-                if (g_entities[id].client->sess.sessionTeam != TEAM_SPECTATOR)
-                {       
-                    trap_SendConsoleCommand(EXEC_APPEND, va("forceteam %i s\n", id));
-                }
-
-                trap_SendServerCommand(-1, va("print \"%s^1 may not be kicked.\n\"", g_entities[id].client->pers.netname));
-                return;
-            }
-        }
-
 		trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", level.voteString ) );
 
 		if (level.votingGametype)
@@ -3782,7 +3707,7 @@ void CheckVote( void ) {
 		return;
 	}
 	if ( level.time - level.voteTime >= VOTE_TIME ) {
-        if (g_minimumVotesCount.integer && (level.voteYes > level.voteNo) && ((level.voteYes + level.voteNo) >= g_minimumVotesCount.integer)) {
+        if ((g_minimumVotesCount.integer) && (level.numVotingClients % 2 == 0) && (level.voteYes > level.voteNo) && (level.voteYes + level.voteNo >= g_minimumVotesCount.integer)) {
             trap_SendServerCommand(-1, va("print \"%s\n\"",
                 G_GetStringEdString("MP_SVGAME", "VOTEPASSED")));
 
@@ -3797,6 +3722,14 @@ void CheckVote( void ) {
 		G_LogPrintf("Vote timed out. (Yes:%i No:%i All:%i)\n", level.voteYes, level.voteNo, level.numVotingClients);
         }
 	} else {
+        if ((g_enforceEvenVotersCount.integer) && (level.numVotingClients % 2 == 1)) {
+            if ((g_minVotersForEvenVotersCount.integer > 4) && (level.numVotingClients >= g_minVotersForEvenVotersCount.integer)) {
+                if (level.voteYes < level.numVotingClients/2 + 2) {
+                    return;
+                }
+            }
+        }
+
 		if ( level.voteYes > level.numVotingClients/2 ) {
 			trap_SendServerCommand( -1, va("print \"%s\n\"", 
 				G_GetStringEdString("MP_SVGAME", "VOTEPASSED")) );
@@ -3826,79 +3759,82 @@ void CheckVote( void ) {
 
 void CheckReady(void) 
 {
-	int i = 0, readyCount = 0;
-	int botsCount = 0;
-	gentity_t *ent = NULL;
-	unsigned readyMask = 0;
-	static qboolean restarting = qfalse;
+    int i = 0, readyCount = 0;
+    int botsCount = 0;
+    gentity_t *ent = NULL;
+    unsigned readyMask = 0;
+    static qboolean restarting = qfalse;
 
-	if ((g_gametype.integer == GT_POWERDUEL) || (g_gametype.integer == GT_DUEL) || (g_gametype.integer == GT_SIEGE))
-		return;
+    if ((g_gametype.integer == GT_POWERDUEL) || (g_gametype.integer == GT_DUEL) || (g_gametype.integer == GT_SIEGE))
+        return;
 
-	if (!g_doWarmup.integer || !level.numPlayingClients || restarting || level.intermissiontime)
-		return;
+    // for original functionality of /ready
+    // if (!g_doWarmup.integer || !level.numPlayingClients || restarting || level.intermissiontime)
+    if (!g_doWarmup.integer || restarting || level.intermissiontime)
+        return;
 
-	for (i = 0, ent = g_entities; i < level.maxclients; i++, ent++) 
-	{
-		if (!ent->inuse || ent->client->pers.connected == CON_DISCONNECTED || ent->client->sess.sessionTeam == TEAM_SPECTATOR)
-			continue;
+    for (i = 0, ent = g_entities; i < level.maxclients; i++, ent++)
+    {
+        // for original functionality of /ready
+        // if (!ent->inuse || ent->client->pers.connected == CON_DISCONNECTED || ent->client->sess.sessionTeam == TEAM_SPECTATOR)
+        if (!ent->inuse || ent->client->pers.connected == CON_DISCONNECTED)
+            continue;
 
-		if (ent->client->pers.ready) 
-		{
-			readyCount++;
-			if (i < 16)
-				readyMask |= (1 << i);
-		}
+        if (ent->client->pers.ready)
+        {
+            readyCount++;
+            if (i < 16)
+                readyMask |= (1 << i);
+        }
 
-		if (ent->r.svFlags & SVF_BOT)
-			++botsCount;
-	}
+        if (ent->r.svFlags & SVF_BOT)
+            ++botsCount;
+    }
 
-	// update ready flags for clients' scoreboards
-	for (i = 0, ent = g_entities; i < level.maxclients; i++, ent++) 
-	{
-		if (!ent->inuse || ent->client->pers.connected == CON_DISCONNECTED)
-			continue;
-
-
-		ent->client->ps.stats[STAT_CLIENTS_READY] = readyMask;
-	}
-
-	// check if all conditions to start the match have been met
-	{
-		int		counts[TEAM_NUM_TEAMS];
-		qboolean	conditionsMet = qtrue;
-
-		counts[TEAM_BLUE] = TeamCount(-1, TEAM_BLUE);
-		counts[TEAM_RED] = TeamCount(-1, TEAM_RED);
-
-		// eat least 1 player in each team
-		if (counts[TEAM_RED] < 1 || counts[TEAM_BLUE] < 1 || counts[TEAM_RED] != counts[TEAM_BLUE])
-		{
-			conditionsMet = qfalse;
-		}
-
-		// all players are ready
-		if (readyCount < counts[TEAM_BLUE] + counts[TEAM_RED] - botsCount)
-		{
-			conditionsMet = qfalse;
-		}
-
-		if (conditionsMet)
-		{
-			trap_Cvar_Set("g_restarted", "1");
-			trap_Cvar_Set("g_wasRestarted", "1");
-			trap_SendConsoleCommand(EXEC_APPEND, "map_restart 5\n");
-			restarting = qtrue;
-			return;
-		}
-		else
-		{
+    // update ready flags for clients' scoreboards
+    for (i = 0, ent = g_entities; i < level.maxclients; i++, ent++)
+    {
+        if (!ent->inuse || ent->client->pers.connected == CON_DISCONNECTED)
+            continue;
 
 
-		}
+        ent->client->ps.stats[STAT_CLIENTS_READY] = readyMask;
+    }
 
-	}
+    // allow this for original functionality of /ready
+    // check if all conditions to start the match have been met
+    // {
+    //    int		counts[TEAM_NUM_TEAMS];
+    //    qboolean	conditionsMet = qtrue;
+    //
+    //    counts[TEAM_BLUE] = TeamCount(-1, TEAM_BLUE);
+    //    counts[TEAM_RED] = TeamCount(-1, TEAM_RED);
+    //
+    //    // eat least 1 player in each team
+    //    if (counts[TEAM_RED] < 1 || counts[TEAM_BLUE] < 1 || counts[TEAM_RED] != counts[TEAM_BLUE])
+    //    {
+    //        conditionsMet = qfalse;
+    //    }
+    //
+    //    // all players are ready
+    //    if (readyCount < counts[TEAM_BLUE] + counts[TEAM_RED] - botsCount)
+    //    {
+    //        conditionsMet = qfalse;
+    //    }
+    //
+    //    if (conditionsMet)
+    //    {
+    //        trap_Cvar_Set("g_restarted", "1");
+    //        trap_Cvar_Set("g_wasRestarted", "1");
+    //        trap_SendConsoleCommand(EXEC_APPEND, "map_restart 5\n");
+    //        restarting = qtrue;
+    //        return;
+    //    }
+    //    else
+    //    {
+    //
+    //    }
+    // }
 }
 
 /*
@@ -4065,6 +4001,7 @@ Runs thinking code for this frame if necessary
 =============
 */
 extern void proxMineThink(gentity_t *ent);
+extern void SiegeItemThink( gentity_t *ent );
 
 void G_RunThink (gentity_t *ent) {
 	int	thinktime;
@@ -4078,6 +4015,11 @@ void G_RunThink (gentity_t *ent) {
 		// special case, mines need update here
 		if ( ent->think == proxMineThink && ent->genericValue15 > level.time)
 			ent->genericValue15 += level.time - level.previousTime;
+
+        // another special case, siege items need respawn timer update
+        if ( ent->think == SiegeItemThink && ent->genericValue9 > level.time )
+            ent->genericValue9 += level.time - level.previousTime;
+
 	}
 
 	thinktime = ent->nextthink;
@@ -4175,6 +4117,8 @@ extern int getstatus_TimeToReset;
 extern int getstatus_Counter;
 extern int getstatus_LastReportTime;
 extern int getstatus_UniqueIPCount;
+extern int gImperialCountdown;
+extern int gRebelCountdown;
 
 void G_RunFrame( int levelTime ) {
 	int			i;
@@ -4204,7 +4148,7 @@ void G_RunFrame( int levelTime ) {
 			clEnt = &g_entities[i];
 
 			if (clEnt->inuse && clEnt->client &&
-				clEnt->client->tempSpectate > level.time &&
+                ((clEnt->client->tempSpectate > level.time) || ((clEnt->health <= 0) && (level.time > clEnt->client->respawnTime))) &&
 				clEnt->client->sess.sessionTeam != TEAM_SPECTATOR)
 			{
 				respawn(clEnt);
@@ -4308,6 +4252,30 @@ void G_RunFrame( int levelTime ) {
                     trap_SetConfigstring( CS_LEVEL_START_TIME, va( "%i", level.startTime ) );
                     if ( level.warmupTime > 0 )
                             trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime ) );
+            }
+
+            if ( g_gametype.integer == GT_SIEGE )
+            {
+                // siege timer adjustment
+                char siegeState[128];
+                int round, startTime;
+                trap_GetConfigstring( CS_SIEGE_STATE, siegeState, sizeof( siegeState ) );
+                sscanf( siegeState, "%i|%i", &round, &startTime );
+                startTime += dt;
+                trap_SetConfigstring( CS_SIEGE_STATE, va( "%i|%i", round, startTime ) );
+                g_siegeRespawnCheck += dt;
+
+				// siege objectives timers adjustments
+				if ( gImperialCountdown )
+				{ 
+					gImperialCountdown += dt;
+				}
+
+				if ( gRebelCountdown )
+				{
+					gRebelCountdown += dt;
+				}
+
             }
     }
     if ( level.pause.state == PAUSE_PAUSED )

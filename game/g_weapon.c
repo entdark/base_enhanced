@@ -159,6 +159,7 @@ extern qboolean G_HeavyMelee( gentity_t *attacker );
 extern void Jedi_Decloak( gentity_t *self );
 
 static void WP_FireEmplaced( gentity_t *ent, qboolean altFire );
+static void WP_TouchRocket( gentity_t *ent, gentity_t *other, trace_t *trace );
 
 void laserTrapStick( gentity_t *ent, vec3_t endpos, vec3_t normal );
 
@@ -690,10 +691,6 @@ void WP_DisruptorAltFire( gentity_t *ent )
 		start[2] += ent->client->ps.viewheight;//By eyes
 
 		count = ( level.time - ent->client->ps.weaponChargeTime ) / DISRUPTOR_CHARGE_UNIT;
-		if ( g_gametype.integer == GT_SIEGE )
-		{//maybe a full alt-charge should be a *bit* more dangerous in Siege mode?
-			maxCount = 200;//the previous line ALWAYS evaluated to 135 - was that on purpose?
-		}
 	}
 	else
 	{
@@ -1940,6 +1937,11 @@ static void WP_FireRocket( gentity_t *ent, qboolean altFire )
 	missile->clipmask = MASK_SHOT;
 	missile->splashDamage = ROCKET_SPLASH_DAMAGE;
 	missile->splashRadius = ROCKET_SPLASH_RADIUS;
+
+	if ( !g_rocketSurfing.integer )
+	{
+		missile->touch = WP_TouchRocket;
+	}
 
 	// we don't want it to ever bounce
 	missile->bounceCount = 0;
@@ -3577,6 +3579,14 @@ void WP_TouchVehMissile( gentity_t *ent, gentity_t *other, trace_t *trace )
 	}
 	G_MissileImpact( ent, &myTrace );
 }
+
+void WP_TouchRocket( gentity_t *ent, gentity_t *other, trace_t *trace )
+{
+	if ( ent )
+	{
+		ent->die( ent, NULL, NULL, ROCKET_DAMAGE, MOD_ROCKET_HOMING );
+	}
+}	 
 
 void WP_CalcVehMuzzle(gentity_t *ent, int muzzleNum)
 {

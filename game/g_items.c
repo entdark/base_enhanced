@@ -135,6 +135,8 @@ void ShieldThink(gentity_t *self)
 	self->nextthink = level.time + 1000;
 	if (self->health <= 0)
 	{
+		G_LogPrintf( "ShieldThink() Removing shield %i by decay\n",
+			self - g_entities );
 		ShieldRemove(self);
 	}
 	return;
@@ -146,6 +148,12 @@ void ShieldDie(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int d
 {
 	// Play damaging sound...
 	G_AddEvent(self, EV_GENERAL_SOUND, shieldDamageSound);
+
+	if ( !inflictor ) inflictor = self;
+	if ( !attacker ) attacker = self;
+	G_LogPrintf( "ShieldDie() Killing shield %i by inflictor %i (%s), attacker %i (%s), dmg %i, mod %i\n",
+		self - g_entities, inflictor - g_entities, inflictor->classname,
+		attacker - g_entities, attacker->classname, damage, mod );
 
 	ShieldRemove(self);
 }
@@ -163,6 +171,10 @@ void ShieldPain(gentity_t *self, gentity_t *attacker, int damage)
 
 	self->s.trickedentindex = 1;
 
+	if ( !attacker ) attacker = self;
+	G_LogPrintf( "ShieldPain() Damaging (dmg %i) shield %i by entity %i (%s)\n",
+		damage, self - g_entities, attacker - g_entities, attacker->classname );
+
 	return;
 }
 
@@ -176,6 +188,8 @@ void ShieldGoSolid(gentity_t *self)
 	self->health--;
 	if (self->health <= 0)
 	{
+		G_LogPrintf( "ShieldGoSolid() Removing shield %i\n",
+			self - g_entities );
 		ShieldRemove(self);
 		return;
 	}
@@ -189,6 +203,12 @@ void ShieldGoSolid(gentity_t *self)
 	}
 	else
 	{ // get hard... huh-huh...
+		if ( (self->s.eFlags & EF_NODRAW) )
+		{
+			G_LogPrintf( "ShieldGoSolid() Enabling shield %i\n",
+				self - g_entities );
+		}
+
 		self->s.eFlags &= ~EF_NODRAW;
 
 		self->r.contents = CONTENTS_SOLID;
@@ -200,7 +220,7 @@ void ShieldGoSolid(gentity_t *self)
 		// Play raising sound...
 		G_AddEvent(self, EV_GENERAL_SOUND, shieldActivateSound);
 		self->s.loopSound = shieldLoopSound;
-		self->s.loopIsSoundset = qfalse;
+		self->s.loopIsSoundset = qfalse;	
 	}
 
 	return;
@@ -210,6 +230,8 @@ void ShieldGoSolid(gentity_t *self)
 // Turn the shield off to allow a friend to pass through.
 void ShieldGoNotSolid(gentity_t *self)
 {
+    qboolean wasSolid = (self->r.contents & CONTENTS_SOLID);
+
 	// make the shield non-solid very briefly
 	self->r.contents = 0;
 	self->s.eFlags |= EF_NODRAW;
@@ -219,10 +241,13 @@ void ShieldGoNotSolid(gentity_t *self)
 	self->takedamage = qfalse;
 	trap_LinkEntity(self);
 
-	// Play kill sound...
-	G_AddEvent(self, EV_GENERAL_SOUND, shieldDeactivateSound);
-	self->s.loopSound = 0;
-	self->s.loopIsSoundset = qfalse;
+    if ( wasSolid )
+    {
+        // Play kill sound...
+        G_AddEvent( self, EV_GENERAL_SOUND, shieldDeactivateSound );
+        self->s.loopSound = 0;
+        self->s.loopIsSoundset = qfalse;
+    } 
 }
 
 
@@ -234,8 +259,14 @@ void ShieldTouch(gentity_t *self, gentity_t *other, trace_t *trace)
 		// compare the parent's team to the "other's" team
 		if (self->parent && ( self->parent->client) && (other->client))
 		{
-			if (OnSameTeam(self->parent, other))
+			trap_Trace( trace, self->r.currentOrigin, self->r.mins, self->r.maxs, self->r.currentOrigin, self->s.number, other->clipmask );
+			if ( OnSameTeam( self->parent, other ) || (trace->startsolid && trace->entityNum == other->s.number) )
 			{
+				if ( !(self->s.eFlags & EF_NODRAW) )
+				{
+					G_LogPrintf( "ShieldTouch() Disabling shield %i for ally entity %i\n",
+						self - g_entities, other - g_entities );
+				}
 				ShieldGoNotSolid(self);
 			}
 		}
@@ -244,6 +275,8 @@ void ShieldTouch(gentity_t *self, gentity_t *other, trace_t *trace)
 	{//let the person who dropped the shield through
 		if (self->parent && self->parent->s.number == other->s.number)
 		{
+			G_LogPrintf( "ShieldTouch() Disabling shield %i for owner (non-team gametypes)\n",
+				self - g_entities);
 			ShieldGoNotSolid(self);
 		}
 	}
@@ -317,6 +350,13 @@ void CreateShield(gentity_t *ent)
 	}
 	ent->clipmask = MASK_SHOT;
 
+	G_LogPrintf( "CreateShield() Creating shield %i for owner %i, origin (%.3f, %.3f, %.3f), min corner (%.3f, %.3f, %.3f), max corner (%.3f, %.3f, %.3f)\n",
+		ent - g_entities,
+		ent->s.owner,
+		ent->r.currentOrigin[0], ent->r.currentOrigin[1], ent->r.currentOrigin[2],
+		ent->r.mins[0], ent->r.mins[1], ent->r.mins[2],
+		ent->r.maxs[0], ent->r.maxs[1], ent->r.maxs[2] );
+
 	// Information for shield rendering.
 
 //	xaxis - 1 bit
@@ -354,6 +394,10 @@ void CreateShield(gentity_t *ent)
 		ent->think = ShieldGoSolid;
 		ent->takedamage = qfalse;
 		trap_LinkEntity(ent);
+
+		if ( tr.entityNum < 0 || tr.entityNum >= MAX_GENTITIES ) tr.entityNum = ent - g_entities;
+		G_LogPrintf("CreateShield() Creating shield %i, entity %i in way (%s)\n", 
+			ent - g_entities, tr.entityNum, g_entities[tr.entityNum].classname );
 	}
 	else
 	{	// Get solid.
@@ -369,6 +413,9 @@ void CreateShield(gentity_t *ent)
 		G_AddEvent(ent, EV_GENERAL_SOUND, shieldActivateSound);
 		ent->s.loopSound = shieldLoopSound;
 		ent->s.loopIsSoundset = qfalse;
+
+		G_LogPrintf( "CreateShield() Creating shield %i, free space\n",
+			ent - g_entities );
 	}
 
 	ShieldGoSolid(ent);
@@ -789,7 +836,7 @@ void pas_think( gentity_t *ent )
 
 	if (ent->enemy)
 	{
-		if (!ent->enemy->client)
+		if ( !ent->enemy->client || !ent->enemy->inuse)
 		{
 			ent->enemy = NULL;
 		}
@@ -3198,13 +3245,30 @@ void G_RunItem( gentity_t *ent ) {
 	contents = trap_PointContents( ent->r.currentOrigin, -1 );
 	if ( contents & CONTENTS_NODROP ) {
 		if (ent->item && ent->item->giType == IT_TEAM) {
-            if (!g_flags_overboarding.integer) {
-                Team_FreeEntity(ent);
-            }                  			
-		} else {
-			G_FreeEntity( ent );
-		}   
-        return;
+			if ( !g_flags_overboarding.integer )
+			{
+				Team_FreeEntity( ent );
+			}
+		}
+		else
+		{
+			if ( !g_fixNodropDetpacks.integer &&  ent->s.weapon == WP_DET_PACK )
+			{
+				G_FreeEntity( ent );
+			}
+			else if ( ent->s.weapon != WP_DET_PACK )  // for det packs we want consistent behaviour to trip mines
+			{	 				
+				if ( ent->takedamage )
+				{
+					G_Damage( ent, ent, ent, NULL, NULL, 9999, 0, MOD_UNKNOWN );
+				}
+				else
+				{
+					G_FreeEntity( ent );
+				}
+			}
+		}
+		return;
 	}
 
 	G_BounceItem( ent, &tr );

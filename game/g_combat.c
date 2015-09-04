@@ -2217,7 +2217,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	G_MuteSound(self->s.number, CHAN_WEAPON);
 
 	//Raz: Siege exploit where you could place detpack on your own objectives, change team, and instantly win.
-	if ( g_gametype.integer == GT_SIEGE && meansOfDeath == MOD_TEAM_CHANGE )
+    if ( g_gametype.integer == GT_SIEGE && meansOfDeath == MOD_TEAM_CHANGE 
+        && (self->client->sess.siegeDesiredTeam != self->client->sess.sessionTeam) )
 		RemoveDetpacks( self );
 	else
 		BlowDetpacks(self); //blow detpacks if they're planted
@@ -2353,8 +2354,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			}
 			else
 			{
-				AddScore( attacker, self->r.currentOrigin, -1 );
+                AddScore( attacker, self->r.currentOrigin, -g_selfkill_penalty.integer );
 			}
+
 			if (g_gametype.integer == GT_JEDIMASTER)
 			{
 				if (self->client && self->client->ps.isJediMaster)
@@ -2495,7 +2497,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	if ( MOD_TEAM_CHANGE == meansOfDeath )
 	{
 		// Give them back a point since they didn't really die.
-		AddScore( self, self->r.currentOrigin, 1 );
+		AddScore( self, self->r.currentOrigin, g_selfkill_penalty.integer );
 	}
 	else
 	{
