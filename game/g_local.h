@@ -403,6 +403,7 @@ typedef struct {
 	int			flagrecovery;
 	int			fragcarrier;
 	int			assists;
+	int			holyshit;
 
 	//special stats
 	int			th;
@@ -516,6 +517,10 @@ typedef struct {
 	//special chat limit variables
 	int         chatSentCount;
 	int         chatSentTime;
+
+	//damage calculating
+	int			damageCaused;
+	int			damageTaken;
 
 } clientPersistant_t;
 
@@ -1053,6 +1058,7 @@ void Cmd_SaberAttackCycle_f(gentity_t *ent);
 int G_ItemUsable(playerState_t *ps, int forcedUse);
 void Cmd_ToggleSaber_f(gentity_t *ent);
 void Cmd_EngageDuel_f(gentity_t *ent);
+void Cmd_PrintStats_f(gentity_t *ent);
 
 gentity_t *G_GetDuelWinner(gclient_t *client);
 
@@ -1488,6 +1494,17 @@ void G_WriteSessionData( void );
 void G_ReadSessionData( void );
 
 //
+// g_stats.c
+//
+
+#define STATS_SCOREBOARD	0x01
+#define STATS_GAMETYPE		0x02
+#define STATS_REWARDS		0x04
+#define STATS_FULL			STATS_SCOREBOARD | STATS_GAMETYPE | STATS_REWARDS
+
+void G_StatsPrintTeam(team_t team, int id, int flags);
+
+//
 // NPC_senses.cpp
 //
 extern void AddSightEvent( gentity_t *owner, vec3_t position, float radius, alertEventLevel_e alertLevel, float addLight ); //addLight = 0.0f
@@ -1639,6 +1656,7 @@ extern	vmCvar_t	g_restarted;
 extern	vmCvar_t	g_trueJedi;
 
 extern	vmCvar_t	g_autoMapCycle;
+extern	vmCvar_t	g_autoStats;
 extern	vmCvar_t	g_dmflags;
 extern	vmCvar_t	g_maxForceRank;
 extern	vmCvar_t	g_forceBasedTeams;

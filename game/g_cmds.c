@@ -3597,7 +3597,62 @@ static void Cmd_WhoIs_f( gentity_t* ent )
         context.entNum = ent - g_entities;
         G_CfgDbListAliases( g_entities[id].client->sess.ip, maskInt, 3, listAliasesCallback, &context );
     }
-}  
+}
+
+//:))
+void Cmd_PrintStats_f(gentity_t *ent) {
+	int ingame = qfalse;
+	int id = ent ? (ent - g_entities) : -1;
+	int flags = STATS_FULL;
+	char arg[8];
+
+	trap_Argv(1, arg, sizeof(arg));
+
+	//TODO: make multifilter that works with any filters order:
+	// /stats filter1 filter2
+	// /stats filter2 filter1
+	if (trap_Argc() >= 2) {
+		flags = 0;
+		if (!Q_stricmp(arg, "rewards") || !Q_stricmp(arg, "awards")) {
+			flags |= STATS_REWARDS;
+		}
+		else if (!Q_stricmp(arg, "scoreboard") || !Q_stricmp(arg, "sb")) {
+			flags |= STATS_SCOREBOARD;
+			//no matching filters
+		}
+		else {
+			flags = STATS_FULL;
+		}
+	}
+
+	for (int i = 0; i < level.maxclients; i++) {
+		if (!g_entities[i].inuse || !g_entities[i].client) {
+			continue;
+		}
+
+		if (g_entities[i].client->sess.sessionTeam != TEAM_SPECTATOR) {
+			ingame = qtrue;
+			break;
+		}
+	}
+
+		if (!ingame) {
+			if (id != -1)
+				trap_SendServerCommand(id, "print \""S_COLOR_RED"Noone is playing at the moment. Statistics aren't generated.\n");
+				return;
+			}
+
+	if (g_gametype.integer >= GT_TEAM) {
+		trap_SendServerCommand(id, va("print \"\n"S_COLOR_CYAN"TEAM SCORE\n"S_COLOR_RED"RED "S_COLOR_WHITE"%d "S_COLOR_BLUE"BLUE "S_COLOR_WHITE"%d\n\n", level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE]));
+		G_StatsPrintTeam(TEAM_RED, id, flags);
+		G_StatsPrintTeam(TEAM_BLUE, id, flags);
+	}
+	else
+		//does this work?
+		G_StatsPrintTeam(TEAM_FREE, id, flags);
+
+	trap_SendServerCommand(id, "print \""S_COLOR_CYAN"Statistics are generated.\n");
+}
 
 void Cmd_EngageDuel_f(gentity_t *ent)
 {
@@ -4131,6 +4186,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_MapPool_f(ent);
     else if ( Q_stricmp( cmd, "whois" ) == 0 )
         Cmd_WhoIs_f( ent );
+	else if (Q_stricmp(cmd, "stats") == 0)
+		Cmd_PrintStats_f(ent);
 	else if (Q_stricmp (cmd, "gc") == 0)
 		Cmd_GameCommand_f( ent );
 	else if (Q_stricmp (cmd, "setviewpos") == 0)
