@@ -1,14 +1,51 @@
 #include "g_local.h"
 
+//copy some existing data from other vars
+void G_StatsInitClient(gclient_t *cl) {
+	stats_t *stats = &cl->pers.stats;
+	stats->sb.score = cl->ps.persistant[PERS_SCORE];
+	stats->sb.accuracy = cl->accuracy_shots ? (cl->accuracy_hits * 100 / cl->accuracy_shots) : 0;
+	stats->sb.dmgCaused = cl->pers.damageCaused;
+	stats->sb.dmgTaken = cl->pers.damageTaken;
+
+	stats->gt.ctf.fragcarrier = cl->pers.teamState.fragcarrier;
+	stats->gt.ctf.flagRets = cl->pers.teamState.flagrecovery;
+	stats->gt.ctf.flagHold = cl->pers.teamState.flaghold;
+
+	stats->rw.captures = cl->ps.persistant[PERS_CAPTURES];
+	stats->rw.assist = cl->ps.persistant[PERS_ASSIST_COUNT];
+	stats->rw.defend = cl->ps.persistant[PERS_DEFEND_COUNT];
+	stats->rw.excellent = cl->ps.persistant[PERS_EXCELLENT_COUNT];
+	stats->rw.impressive = cl->ps.persistant[PERS_IMPRESSIVE_COUNT];
+	stats->rw.humiliation = cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT];
+}
+
+void G_StatsInit(void) {
+	int i;
+	for (i = 0; i < level.maxclients; i++) {
+		gentity_t *ent = &g_entities[i];
+		if (!ent->client || !ent->inuse)
+			continue;
+		if (ent->client->sess.sessionTeam == TEAM_SPECTATOR)
+			continue;
+		G_StatsInitClient(ent->client);
+	}
+}
+
 static char line[1022];
 
-char* G_StatsGetColor(int max, int stat) {
-	if (max == stat && max != 0) {
+char* G_StatsGetColor(int stats, int best) {
+	if (best == stats && best != 0) {
 		return S_COLOR_GREEN;
-	}
-	else {
+	} else {
 		return S_COLOR_WHITE;
 	}
+}
+
+//*fmt should always come with %d
+void G_StatsStrcat(const char *fmt, int stats, int best) {
+	char *colour = G_StatsGetColor(stats, best);
+	Q_strcat(line, sizeof(line), va("%s%s", colour, fmt, stats));
 }
 
 void G_StatsPrintIndent(int nameLenMax, int flags) {
@@ -87,13 +124,14 @@ void G_StatsPrintName(int nameLenMax, gclient_t *cl) {
 	}
 }
 
-void G_StatsPrintStats(int *stat, gclient_t *cl) {
-	Q_strcat(line, sizeof(line), S_COLOR_WHITE);
-	Q_strcat(line, sizeof(line), va(" %s%5d ", G_StatsGetColor(*(stat++), cl->ps.persistant[PERS_SCORE]), cl->ps.persistant[PERS_SCORE]));
-	Q_strcat(line, sizeof(line), va("%s%3d ", G_StatsGetColor(*(stat++), cl->accuracy_shots ? cl->accuracy_hits * 100 / cl->accuracy_shots : 0), cl->accuracy_shots ? cl->accuracy_hits * 100 / cl->accuracy_shots : 0));
+void G_StatsPrintStats(stats_t best, gclient_t *cl) {
+	stats_t stats = cl->pers.stats;
+	Q_strcat(line, sizeof(line), S_COLOR_WHITE" ");
+	G_StatsStrcat("%5d ", stats.sb.score, best.sb.score);
+	G_StatsStrcat("%3d ", stats.sb.accuracy, best.sb.accuracy);
 	Q_strcat(line, sizeof(line), va("%s%4d ", S_COLOR_WHITE, (level.time - cl->pers.enterTime) / 60000));
-	Q_strcat(line, sizeof(line), va("%s%4d ", G_StatsGetColor(*(stat++), cl->pers.damageCaused), cl->pers.damageCaused));
-	Q_strcat(line, sizeof(line), va("%s%4d ", G_StatsGetColor(*stat, cl->pers.damageTaken), cl->pers.damageTaken));
+	G_StatsStrcat("%4d ", stats.sb.dmgCaused, best.sb.dmgCaused);
+	G_StatsStrcat("%4d ", stats.sb.dmgTaken, best.sb.dmgTaken);
 }
 
 void G_StatsPrintCTFStats(int *stat, playerTeamState_t teamState) {
@@ -141,59 +179,21 @@ void G_StatsPrintRewards(int *stat, int pers[]) {
 	Q_strcat(line, sizeof(line), va("%s%3d ", G_StatsGetColor(*stat, pers[PERS_GAUNTLET_FRAG_COUNT]), pers[PERS_GAUNTLET_FRAG_COUNT]));
 }
 
-void G_StatsFindBest (int clientNum, int *stat) {
-	gclient_t *cl = g_entities[clientNum].client;
-
-	if (*stat < cl->ps.persistant[PERS_SCORE])
-		*stat = cl->ps.persistant[PERS_SCORE];
-	stat++;
-	if (cl->accuracy_shots
-		&& *stat < cl->accuracy_hits * 100 / cl->accuracy_shots)
-		*stat = cl->accuracy_hits * 100 / cl->accuracy_shots;
-	stat++;
-	if (*stat < cl->pers.damageCaused)
-		*stat = cl->pers.damageCaused;
-	stat++;
-	if (*stat < cl->pers.damageTaken)
-		*stat = cl->pers.damageTaken;
-	stat++;
-	if (*stat < cl->pers.teamState.fragcarrier)
-		*stat = cl->pers.teamState.fragcarrier;
-	stat++;
-	if (*stat < cl->pers.teamState.flagrecovery)
-		*stat = cl->pers.teamState.flagrecovery;
-	stat++;
-	if (*stat < cl->pers.teamState.flaghold)
-		*stat = cl->pers.teamState.flaghold;
-	stat++;
-	if (*stat < cl->pers.teamState.th)
-		*stat = cl->pers.teamState.th;
-	stat++;
-	if (*stat < cl->pers.teamState.te)
-		*stat = cl->pers.teamState.te;
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_CAPTURES])
-		*stat = cl->ps.persistant[PERS_CAPTURES];
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_ASSIST_COUNT])
-		*stat = cl->ps.persistant[PERS_ASSIST_COUNT];
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_DEFEND_COUNT])
-		*stat = cl->ps.persistant[PERS_DEFEND_COUNT];
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_EXCELLENT_COUNT])
-		*stat = cl->ps.persistant[PERS_EXCELLENT_COUNT];
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_IMPRESSIVE_COUNT])
-		*stat = cl->ps.persistant[PERS_IMPRESSIVE_COUNT];
-	stat++;
-	if (*stat < cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT])
-		*stat = cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT];
+#define STATS_LEN sizeof(stats_t)/sizeof(int)-1 //-start
+void G_StatsFindBest(stats_t *best, stats_t *stats) {
+	int *givenStats = (&(stats->start))+1;
+	int *bestStats = (&(best->start))+1;
+	int i, len = STATS_LEN;
+	
+	for (i = 0; i < len; i++, givenStats++, bestStats++) {
+		if (*givenStats > *bestStats)
+			*bestStats = *givenStats;
+	}
 }
 
 void G_StatsPrintTeam(team_t team, int id, int flags) {
 	int i, nameLenMax = 0;
-	int best[12 + 4] = { 0 };
+	stats_t best;
 	gclient_t *cl;
 
 	for (i = 0; i < level.maxclients; i++) {
@@ -210,7 +210,7 @@ void G_StatsPrintTeam(team_t team, int id, int flags) {
 		if (g_entities[i].client->sess.sessionTeam != team)
 			continue;
 
-		G_StatsFindBest(i, best);
+		G_StatsFindBest(&(g_entities[i].client->pers.stats), &best);
 	}
 
 	if (nameLenMax < 4)
@@ -234,13 +234,13 @@ void G_StatsPrintTeam(team_t team, int id, int flags) {
 		G_StatsPrintName(nameLenMax, cl);
 
 		if (flags & STATS_SCOREBOARD)
-			G_StatsPrintStats(&best[0], cl);
+			G_StatsPrintStats(best, cl);
 
 		if (g_gametype.integer == GT_CTF && flags & STATS_GAMETYPE)
-			G_StatsPrintCTFStats(&best[4], cl->pers.teamState);
+			G_StatsPrintCTFStats(best, cl->pers.teamState);
 
 		if (flags & STATS_REWARDS)
-			G_StatsPrintRewards(&best[9], cl->ps.persistant);
+			G_StatsPrintRewards(best, cl->ps.persistant);
 
 		trap_SendServerCommand(id, va("print \"%s\n", line));
 	}

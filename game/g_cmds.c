@@ -80,8 +80,8 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 
 		//lower 16 bits say average return time
 		//higher 16 bits say how many times did player get the flag
-		statsMix = cl->pers.teamState.th;
-		statsMix |= ((cl->pers.teamState.te) << 16);
+		statsMix = cl->pers.stats.force[FP_TEAM_HEAL].count;
+		statsMix |= ((cl->pers.stats.force[FP_TEAM_FORCE].count) << 16);
 
 		Com_sprintf (entry, sizeof(entry),
 			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i", level.sortedClients[i],

@@ -1395,7 +1395,7 @@ void ForceTeamHeal( gentity_t *self )
 	}
 
 	//this entity will definitely use TH, log it
-	++self->client->pers.teamState.th;
+	++self->client->pers.stats.force[FP_TEAM_HEAL].count;
 
 	if (numpl == 1)
 	{
@@ -1505,7 +1505,7 @@ void ForceTeamForceReplenish( gentity_t *self )
 	}
 
 	//this entity will definitely use TE, log it
-	++self->client->pers.teamState.te;
+	++self->client->pers.stats.force[FP_TEAM_FORCE].count;
 
 	if (numpl == 1)
 	{

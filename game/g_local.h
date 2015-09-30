@@ -406,8 +406,6 @@ typedef struct {
 	int			holyshit;
 
 	//special stats
-	int			th;
-	int			te;
 	int			flaghold;
 
 	int			lasthurtcarrier;
@@ -486,6 +484,30 @@ typedef struct
 	int  mapsCount;
 } MapPool;
 
+typedef struct {
+	int start; //use this var to address to as the beginning of the struct, keep always the first!!
+	struct scoreboard {
+		int score, accuracy, dmgCaused, dmgTaken;
+		int selfKills, pitFalls;
+	} sb;
+	struct gametype {
+		struct {
+			int fragcarrier, flagRets, flagHold, flagGets, fastCap;
+		} ctf;
+	} gt;
+	struct rewards {
+		int captures, assist, defend, holyShit;
+		int excellent, impressive, humiliation;
+	} rw;
+	struct {
+		int accuracy, shots, hits, kills, damage;
+	} wp[WP_NUM_WEAPONS];
+	//special thing is like how much protect absorbed damage or how much fp got drained with drain etc
+	struct {
+		int count, kills, damage, duration, special;
+	} force[NUM_FORCE_POWERS];
+} stats_t;
+
 // client data that stays across multiple respawns, but is cleared
 // on each level change or team change at ClientBegin()
 typedef struct {
@@ -522,6 +544,7 @@ typedef struct {
 	int			damageCaused;
 	int			damageTaken;
 
+	stats_t		stats;
 } clientPersistant_t;
 
 typedef struct renderInfo_s
@@ -1497,10 +1520,15 @@ void G_ReadSessionData( void );
 // g_stats.c
 //
 
-#define STATS_SCOREBOARD	0x01
-#define STATS_GAMETYPE		0x02
-#define STATS_REWARDS		0x04
-#define STATS_FULL			STATS_SCOREBOARD | STATS_GAMETYPE | STATS_REWARDS
+#define STATS_SCOREBOARD		0x01
+#define STATS_GAMETYPE			0x02
+#define STATS_REWARDS			0x04
+#define STATS_FULL				STATS_SCOREBOARD | STATS_GAMETYPE
+
+#define STATS_PLAYER_GENERAL	0x01
+#define STATS_PLAYER_WEAPONS	0x02
+#define STATS_PLAYER_FORCE		0x04
+#define STATS_PLAYER_FULL		STATS_PLAYER_GENERAL | STATS_PLAYER_WEAPONS | STATS_PLAYER_FORCE
 
 void G_StatsPrintTeam(team_t team, int id, int flags);
 
